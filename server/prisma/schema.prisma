@@ -1,12 +1,35 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
-  output   = "../generated/prisma"
 }
 
 datasource db {
   provider = "sqlite"
-  url      = env("DATABASE_URL")
+  url      = "file:./dev.db"
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  password  String
+  elo       Int      @default(1200)
+  createdAt DateTime @default(now())
+  players   MatchPlayer[]
+}
+
+model Match {
+  id        Int           @id @default(autoincrement())
+  createdAt DateTime      @default(now())
+  duration  Int?
+  players   MatchPlayer[]
+}
+
+model MatchPlayer {
+  id            Int   @id @default(autoincrement())
+  match         Match @relation(fields: [matchId], references: [id])
+  matchId       Int
+  user          User  @relation(fields: [userId], references: [id])
+  userId        Int
+  finishPosition Int?
+  timeMs        Int?
+  deltaElo      Int?
 }
