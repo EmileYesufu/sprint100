@@ -1,0 +1,23 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Run Server (ts-node-dev)",
+      "type": "node",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/server",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["ts-node-dev", "--respawn", "--transpile-only", "src/server.ts"],
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Start Expo",
+      "type": "pwa-node",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/client",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["expo", "start"],
+      "console": "integratedTerminal"
+    }
+  ]
+}
