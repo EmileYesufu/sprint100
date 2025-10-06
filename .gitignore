@@ -1,0 +1,14 @@
+node_modules/
+**/node_modules/
+dist/
+.vscode/
+.env
+.env.local
+*.sqlite
+client/.expo
+client/.expo-shared
+client/.expo/*
+client/.vscode
+npm-debug.log
+yarn-error.log
+.DS_Store
