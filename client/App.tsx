@@ -4,7 +4,7 @@ import * as SecureStore from "expo-secure-store";
 import jwtDecode from "jwt-decode";
 import { io, Socket } from "socket.io-client";
 
-const SERVER = "http://localhost:4000"; // change for device use (use machine IP)
+const SERVER = "http://192.168.1.250:4000"; // Mac's local IP for device testing
 
 export default function App() {
   const [token, setToken] = useState<string | null>(null);
