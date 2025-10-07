@@ -29,9 +29,12 @@ interface UseTrainingReturn {
   pause: () => void;
   resume: () => void;
   abort: () => void;
+  reset: () => void;
+  rerace: () => void;
   replay: () => void;
   result: TrainingResult | null;
   isReplayMode: boolean;
+  isRunning: boolean;
 }
 
 export function useTraining(): UseTrainingReturn {
@@ -249,18 +252,61 @@ export function useTraining(): UseTrainingReturn {
   }, [updateLoop, isReplayMode]);
 
   /**
-   * Abort race
+   * Reset race state but keep config for rerace
+   */
+  const reset = useCallback(() => {
+    if (animationFrameId.current) {
+      cancelAnimationFrame(animationFrameId.current);
+      animationFrameId.current = null;
+    }
+    setRaceState({ status: "setup", elapsedMs: 0, runners: [], stepHistory: [] });
+    setResult(null);
+    setIsReplayMode(false);
+    aiRunners.current = [];
+    playerState.current = { steps: 0, meters: 0, lastSide: null, finished: false };
+    startTimeRef.current = 0;
+    pauseTimeRef.current = 0;
+    pausedDuration.current = 0;
+    // Keep config.current for rerace
+  }, []);
+
+  /**
+   * Abort race and clear config
    */
   const abort = useCallback(() => {
     if (animationFrameId.current) {
       cancelAnimationFrame(animationFrameId.current);
+      animationFrameId.current = null;
     }
     setRaceState({ status: "setup", elapsedMs: 0, runners: [], stepHistory: [] });
     setResult(null);
     setIsReplayMode(false);
     aiRunners.current = [];
     config.current = null;
+    playerState.current = { steps: 0, meters: 0, lastSide: null, finished: false };
+    startTimeRef.current = 0;
+    pauseTimeRef.current = 0;
+    pausedDuration.current = 0;
   }, []);
+
+  /**
+   * Rerace with same config (preserves seed for deterministic behavior)
+   * IMPORTANT: Uses exact same seed to produce identical AI behavior
+   */
+  const rerace = useCallback(() => {
+    if (!config.current) {
+      console.warn("No config available for rerace");
+      return;
+    }
+    
+    const savedConfig = { ...config.current }; // Preserve config including seed
+    reset();
+    
+    // Small delay to ensure state is cleared
+    setTimeout(() => {
+      start(savedConfig);
+    }, 100);
+  }, [reset, start]);
 
   /**
    * Finish race and compute results
@@ -422,6 +468,8 @@ export function useTraining(): UseTrainingReturn {
     };
   }, [raceState.status, updateLoop, isReplayMode]);
 
+  const isRunning = raceState.status === "racing" || raceState.status === "countdown";
+
   return {
     raceState,
     start,
@@ -429,9 +477,12 @@ export function useTraining(): UseTrainingReturn {
     pause,
     resume,
     abort,
+    reset,
+    rerace,
     replay,
     result,
     isReplayMode,
+    isRunning,
   };
 }
 

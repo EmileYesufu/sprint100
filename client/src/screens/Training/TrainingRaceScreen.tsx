@@ -26,7 +26,7 @@ const { width, height } = Dimensions.get("window");
 
 export default function TrainingRaceScreen({ route, navigation }: Props) {
   const { config } = route.params;
-  const { raceState, start, tap, result, replay, isReplayMode } = useTraining();
+  const { raceState, start, tap, result, replay, rerace, abort, isReplayMode } = useTraining();
   const [countdown, setCountdown] = useState<number | null>(null);
 
   useEffect(() => {
@@ -58,12 +58,20 @@ export default function TrainingRaceScreen({ route, navigation }: Props) {
     }
   };
 
-  const handleRematch = () => {
-    start(config);
+  /**
+   * Rerace with same config - uses same seed for deterministic behavior
+   * IMPORTANT: This passes the exact same seed, so AI will behave identically
+   */
+  const handleRerace = () => {
     setCountdown(null);
+    rerace(); // Uses same config including seed
   };
 
-  const handleBackToSetup = () => {
+  /**
+   * Return to TrainingSetupScreen and cleanup all timers/AI runners
+   */
+  const handleReturnHome = () => {
+    abort(); // Cleanup all timers and state
     navigation.goBack();
   };
 
@@ -153,17 +161,17 @@ export default function TrainingRaceScreen({ route, navigation }: Props) {
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.resultButton, styles.rematchButton]}
-                onPress={handleRematch}
+                style={[styles.resultButton, styles.reraceButton]}
+                onPress={handleRerace}
               >
-                <Text style={styles.resultButtonText}>↻ Rematch</Text>
+                <Text style={styles.resultButtonText}>↻ Rerace (Same Config)</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.resultButton, styles.backButton]}
-                onPress={handleBackToSetup}
+                style={[styles.resultButton, styles.returnHomeButton]}
+                onPress={handleReturnHome}
               >
-                <Text style={styles.resultButtonText}>← Setup</Text>
+                <Text style={styles.resultButtonText}>🏠 Return Home</Text>
               </TouchableOpacity>
             </View>
 
@@ -301,18 +309,73 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: "rgba(0, 0, 0, 0.9)",
-    justifyContent: "center",
-    alignItems: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.95)",
   },
-  resultText: {
-    fontSize: 36,
+  resultContent: {
+    padding: 24,
+    paddingTop: 60,
+  },
+  resultTitle: {
+    fontSize: 32,
     fontWeight: "bold",
     color: "#fff",
-    marginBottom: 16,
+    textAlign: "center",
+    marginBottom: 24,
   },
-  resultSubtext: {
+  resultRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#1C1C1E",
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  resultPosition: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#999",
+    width: 40,
+  },
+  resultName: {
+    flex: 1,
     fontSize: 16,
     color: "#999",
+  },
+  resultTime: {
+    fontSize: 14,
+    color: "#fff",
+    marginRight: 12,
+  },
+  resultMeters: {
+    fontSize: 14,
+    color: "#666",
+  },
+  resultButtons: {
+    marginTop: 24,
+    gap: 12,
+  },
+  resultButton: {
+    backgroundColor: "#007AFF",
+    borderRadius: 12,
+    padding: 16,
+    alignItems: "center",
+  },
+  reraceButton: {
+    backgroundColor: "#34C759",
+  },
+  returnHomeButton: {
+    backgroundColor: "#666",
+  },
+  resultButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  replayIndicator: {
+    fontSize: 16,
+    color: "#FF9500",
+    textAlign: "center",
+    marginTop: 16,
+    fontWeight: "bold",
   },
 });
