@@ -62,13 +62,16 @@ export default function ProfileScreen() {
     );
   }
 
+  // Header shows logged-in username from auth context
+  const displayUsername = user.username || "Loading...";
+
   return (
     // SafeAreaView added to avoid iPhone notch/HUD
     <SafeAreaView style={styles.container}>
       {/* Profile Header */}
       <View style={styles.header}>
         {/* Header shows logged-in username only */}
-        <Text style={styles.username}>@{user.username}</Text>
+        <Text style={styles.username}>{displayUsername}</Text>
         
         {/* Display Name (non-editable) */}
         {user.displayName && (
