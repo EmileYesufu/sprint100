@@ -18,6 +18,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { SERVER_URL } from "@/config";
 import { formatElo, formatDate } from "@/utils/formatting";
 import type { MatchHistoryEntry } from "@/types";
+import { colors, typography, spacing } from "@/theme";
 
 export default function ProfileScreen() {
   const { user, token } = useAuth();
@@ -77,6 +78,11 @@ export default function ProfileScreen() {
       {/* Profile Header */}
       <View style={styles.header}>
         <Text style={styles.title}>Profile</Text>
+        
+        {/* Display logged-in username */}
+        {user.username && (
+          <Text style={styles.username}>@{user.username}</Text>
+        )}
         
         {/* Display Name */}
         <View style={styles.nameContainer}>
@@ -166,8 +172,14 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: "bold",
-    marginBottom: 16,
+    marginBottom: 8,
     color: "#333",
+  },
+  username: {
+    fontSize: typography.h4.fontSize,
+    fontWeight: typography.h4.fontWeight,
+    color: colors.primary,
+    marginBottom: spacing.sp4,
   },
   nameContainer: {
     width: "100%",
