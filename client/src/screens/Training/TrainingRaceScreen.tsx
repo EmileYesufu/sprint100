@@ -8,6 +8,8 @@
  * TEST: Start a training race, ensure a racer that crosses first keeps first position
  * in leaderboard and final results even after others finish. Repeat with player finishing
  * first and finishing last to verify immutable position assignment.
+ * 
+ * TEST: Verify top-3 finishers show medals (🥇🥈🥉) and others show "finished" text.
  */
 
 import React, { useEffect, useState, useRef } from "react";
@@ -30,6 +32,29 @@ type Props = NativeStackScreenProps<TrainingStackParamList, "TrainingRace">;
 const { width, height } = Dimensions.get("window");
 
 type CountdownState = "3" | "2" | "1" | "Go" | null;
+
+/**
+ * Get medal emoji for finish position
+ * Returns medal for top-3, null for others
+ */
+function getMedalForPosition(position: number | undefined): string | null {
+  if (!position) return null;
+  if (position === 1) return "🥇";
+  if (position === 2) return "🥈";
+  if (position === 3) return "🥉";
+  return null;
+}
+
+/**
+ * Get accessibility label for medal position
+ */
+function getAccessibilityLabel(position: number | undefined): string {
+  if (!position) return "";
+  if (position === 1) return "First place, gold medal";
+  if (position === 2) return "Second place, silver medal";
+  if (position === 3) return "Third place, bronze medal";
+  return `Position ${position}, finished`;
+}
 
 export default function TrainingRaceScreen({ route, navigation }: Props) {
   const { config } = route.params;
@@ -160,30 +185,54 @@ export default function TrainingRaceScreen({ route, navigation }: Props) {
         </Text>
 
         <ScrollView style={styles.runnersContainer}>
-          {sortedRunners.map((runner, idx) => (
-            <View key={runner.id} style={styles.runnerRow}>
-              <View style={styles.runnerInfo}>
-                <Text style={[styles.position, runner.isPlayer && styles.playerText]}>
-                  #{runner.finishPosition || idx + 1}
-                </Text>
-                <Text style={[styles.runnerName, runner.isPlayer && styles.playerText]}>
-                  {runner.name}
-                </Text>
+          {sortedRunners.map((runner, idx) => {
+            // Get medal emoji for top-3 finishers
+            const medal = getMedalForPosition(runner.finishPosition);
+            
+            return (
+              <View key={runner.id} style={styles.runnerRow}>
+                <View style={styles.runnerInfo}>
+                  <Text style={[styles.position, runner.isPlayer && styles.playerText]}>
+                    #{runner.finishPosition || idx + 1}
+                  </Text>
+                  <Text style={[styles.runnerName, runner.isPlayer && styles.playerText]}>
+                    {runner.name}
+                  </Text>
+                </View>
+                <View style={styles.progressBarContainer}>
+                  <View
+                    style={[
+                      styles.progressBar,
+                      { width: `${metersToPct(runner.meters)}%` },
+                      runner.isPlayer
+                        ? styles.playerProgressBar
+                        : styles.aiProgressBar,
+                    ]}
+                  />
+                </View>
+                {/* Show medal/finished for completed racers, meters for racing */}
+                {runner.finished ? (
+                  medal ? (
+                    <Text 
+                      style={styles.medalText}
+                      accessibilityLabel={getAccessibilityLabel(runner.finishPosition)}
+                    >
+                      {medal}
+                    </Text>
+                  ) : (
+                    <Text 
+                      style={styles.finishedText}
+                      accessibilityLabel={getAccessibilityLabel(runner.finishPosition)}
+                    >
+                      finished
+                    </Text>
+                  )
+                ) : (
+                  <Text style={styles.metersText}>{Math.round(runner.meters)}m</Text>
+                )}
               </View>
-              <View style={styles.progressBarContainer}>
-                <View
-                  style={[
-                    styles.progressBar,
-                    { width: `${metersToPct(runner.meters)}%` },
-                    runner.isPlayer
-                      ? styles.playerProgressBar
-                      : styles.aiProgressBar,
-                  ]}
-                />
-              </View>
-              <Text style={styles.metersText}>{Math.round(runner.meters)}m</Text>
-            </View>
-          ))}
+            );
+          })}
         </ScrollView>
 
         {/* Timer */}
@@ -207,20 +256,34 @@ export default function TrainingRaceScreen({ route, navigation }: Props) {
           <ScrollView contentContainerStyle={styles.resultContent}>
             <Text style={styles.resultTitle}>Race Complete!</Text>
 
-            {result.runners.map((runner) => (
-              <View key={runner.id} style={styles.resultRow}>
-                <Text style={[styles.resultPosition, runner.isPlayer && styles.playerText]}>
-                  #{runner.position}
-                </Text>
-                <Text style={[styles.resultName, runner.isPlayer && styles.playerText]}>
-                  {runner.name}
-                </Text>
-                <Text style={styles.resultTime}>
-                  {(runner.finishTime / 1000).toFixed(2)}s
-                </Text>
-                <Text style={styles.resultMeters}>{Math.round(runner.finalMeters)}m</Text>
-              </View>
-            ))}
+            {result.runners.map((runner) => {
+              const medal = getMedalForPosition(runner.position);
+              
+              return (
+                <View key={runner.id} style={styles.resultRow}>
+                  {/* Show medal for top-3, numeric position for others */}
+                  {medal ? (
+                    <Text 
+                      style={styles.resultMedal}
+                      accessibilityLabel={getAccessibilityLabel(runner.position)}
+                    >
+                      {medal}
+                    </Text>
+                  ) : (
+                    <Text style={[styles.resultPosition, runner.isPlayer && styles.playerText]}>
+                      #{runner.position}
+                    </Text>
+                  )}
+                  <Text style={[styles.resultName, runner.isPlayer && styles.playerText]}>
+                    {runner.name}
+                  </Text>
+                  <Text style={styles.resultTime}>
+                    {(runner.finishTime / 1000).toFixed(2)}s
+                  </Text>
+                  <Text style={styles.resultMeters}>{Math.round(runner.finalMeters)}m</Text>
+                </View>
+              );
+            })}
 
             <View style={styles.resultButtons}>
               {/* Race Seed and Replay functionality removed for Training Mode */}
@@ -353,7 +416,19 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     color: "#fff",
-    width: 40,
+    width: 60,
+    textAlign: "right",
+  },
+  medalText: {
+    fontSize: 20,
+    width: 60,
+    textAlign: "right",
+  },
+  finishedText: {
+    fontSize: 12,
+    fontWeight: "500",
+    color: "#FFD700",
+    width: 60,
     textAlign: "right",
   },
   timer: {
@@ -444,6 +519,11 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: "#999",
     width: 40,
+  },
+  resultMedal: {
+    fontSize: 28,
+    width: 40,
+    textAlign: "center",
   },
   resultName: {
     flex: 1,
