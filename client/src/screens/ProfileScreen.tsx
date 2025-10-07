@@ -10,8 +10,6 @@ import {
   StyleSheet,
   FlatList,
   ActivityIndicator,
-  TextInput,
-  TouchableOpacity,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "@/hooks/useAuth";
@@ -24,8 +22,6 @@ export default function ProfileScreen() {
   const { user, token } = useAuth();
   const [matchHistory, setMatchHistory] = useState<MatchHistoryEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [editingName, setEditingName] = useState(false);
-  const [displayName, setDisplayName] = useState("");
 
   useEffect(() => {
     if (user) {
@@ -58,12 +54,6 @@ export default function ProfileScreen() {
     }
   };
 
-  const handleSaveDisplayName = () => {
-    // TODO: Implement display name update endpoint
-    console.log("Save display name:", displayName);
-    setEditingName(false);
-  };
-
   if (!user) {
     return (
       <View style={styles.container}>
@@ -80,36 +70,10 @@ export default function ProfileScreen() {
         {/* Header shows logged-in username only */}
         <Text style={styles.username}>@{user.username}</Text>
         
-        {/* Display Name */}
-        <View style={styles.nameContainer}>
-          {editingName ? (
-            <View style={styles.editNameContainer}>
-              <TextInput
-                style={styles.nameInput}
-                value={displayName}
-                onChangeText={setDisplayName}
-                placeholder="Display name"
-              />
-              <TouchableOpacity style={styles.saveButton} onPress={handleSaveDisplayName}>
-                <Text style={styles.saveButtonText}>Save</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.cancelButton}
-                onPress={() => setEditingName(false)}
-              >
-                <Text style={styles.cancelButtonText}>Cancel</Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <TouchableOpacity onPress={() => setEditingName(true)}>
-              <Text style={styles.displayName}>
-                {user.displayName || "Tap to add display name"}
-              </Text>
-            </TouchableOpacity>
-          )}
-        </View>
-
-        <Text style={styles.email}>{user.email}</Text>
+        {/* Display Name (non-editable) */}
+        {user.displayName && (
+          <Text style={styles.displayName}>{user.displayName}</Text>
+        )}
         
         <View style={styles.eloContainer}>
           <Text style={styles.eloLabel}>Elo Rating</Text>
@@ -169,57 +133,13 @@ const styles = StyleSheet.create({
     fontSize: typography.h2.fontSize,
     fontWeight: typography.h2.fontWeight,
     color: colors.primary,
-    marginBottom: spacing.sp4,
-  },
-  nameContainer: {
-    width: "100%",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  editNameContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    width: "100%",
+    marginBottom: spacing.sp2,
   },
   displayName: {
-    fontSize: 18,
-    color: "#007AFF",
-    fontStyle: "italic",
-  },
-  nameInput: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 8,
-    padding: 8,
-    marginRight: 8,
-    fontSize: 16,
-  },
-  saveButton: {
-    backgroundColor: "#34C759",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 6,
-    marginRight: 4,
-  },
-  saveButtonText: {
-    color: "#fff",
-    fontWeight: "600",
-  },
-  cancelButton: {
-    backgroundColor: "#999",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 6,
-  },
-  cancelButtonText: {
-    color: "#fff",
-    fontWeight: "600",
-  },
-  email: {
-    fontSize: 16,
-    color: "#666",
-    marginBottom: 16,
+    fontSize: typography.bodyLarge.fontSize,
+    fontWeight: typography.bodyLarge.fontWeight,
+    color: colors.textSecondary,
+    marginBottom: spacing.sp4,
   },
   eloContainer: {
     alignItems: "center",
