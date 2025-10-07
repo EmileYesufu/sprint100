@@ -15,6 +15,7 @@ import {
   StyleSheet,
   Dimensions,
   ScrollView,
+  Alert,
 } from "react-native";
 import { useTraining } from "@/hooks/useTraining";
 import { metersToPct } from "@/utils/formatting";
@@ -66,6 +67,47 @@ export default function TrainingRaceScreen({ route, navigation }: Props) {
   };
 
   /**
+   * Handle quit button press - show confirmation before aborting
+   */
+  const handleQuitPress = () => {
+    Alert.alert(
+      "Quit Race?",
+      "Your current run will be aborted and not recorded.",
+      [
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+        {
+          text: "Quit",
+          style: "destructive",
+          onPress: handleConfirmQuit,
+        },
+      ]
+    );
+  };
+
+  /**
+   * Confirmed quit - cleanup and navigate home
+   */
+  const handleConfirmQuit = () => {
+    try {
+      // Clean up timers & AI runners here
+      countdownTimeouts.current.forEach(clearTimeout);
+      countdownTimeouts.current = [];
+      
+      // Abort training race (cleans up animation frames, AI runners, timers)
+      abort();
+      
+      // Navigate back to training setup
+      navigation.goBack();
+    } catch (error) {
+      console.error("Error quitting race:", error);
+      Alert.alert("Failed to quit race — try again");
+    }
+  };
+
+  /**
    * Rerace with same config - uses same seed for deterministic behavior
    * IMPORTANT: This passes the exact same seed, so AI will behave identically
    */
@@ -109,8 +151,23 @@ export default function TrainingRaceScreen({ route, navigation }: Props) {
   // Get player and sort runners by position
   const sortedRunners = [...raceState.runners].sort((a, b) => b.meters - a.meters);
 
+  // Show quit button during countdown or active race (not on results screen)
+  const showQuitButton = raceState.status !== "finished" || !result;
+
   return (
     <View style={styles.container}>
+      {/* Quit Button - Top Right */}
+      {showQuitButton && (
+        <TouchableOpacity
+          style={styles.quitButton}
+          onPress={handleQuitPress}
+          accessibilityLabel="Quit race"
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Text style={styles.quitButtonText}>✕</Text>
+        </TouchableOpacity>
+      )}
+
       {/* Progress Section */}
       <View style={styles.progressSection}>
         <Text style={styles.header}>Training Race</Text>
@@ -240,6 +297,28 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#000",
+  },
+  quitButton: {
+    position: "absolute",
+    top: 50,
+    right: 16,
+    zIndex: 100,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(255, 59, 48, 0.9)",
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  quitButtonText: {
+    fontSize: 24,
+    fontWeight: "bold",
+    color: "#fff",
   },
   progressSection: {
     paddingTop: 60,
