@@ -12,10 +12,8 @@ import {
   TouchableOpacity,
   StyleSheet,
   ScrollView,
-  TextInput,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { generateSeed } from "@/utils/seededRandom";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { TrainingStackParamList } from "@/navigation/AppNavigator";
 import type { AIDifficulty, AIPersonality } from "@/types";
@@ -26,21 +24,16 @@ export default function TrainingSetupScreen({ navigation }: Props) {
   const [aiCount, setAiCount] = useState<1 | 3 | 7>(3);
   const [difficulty, setDifficulty] = useState<AIDifficulty>("Medium");
   const [personality, setPersonality] = useState<AIPersonality>("Consistent");
-  const [seed, setSeed] = useState<string>(generateSeed().toString());
 
   const handleStart = () => {
     const config = {
       aiCount,
       difficulty,
       personality,
-      seed: parseInt(seed, 10) || generateSeed(),
+      seed: Date.now(), // Generate fresh seed each time
     };
 
     navigation.navigate("TrainingRace", { config });
-  };
-
-  const handleRandomSeed = () => {
-    setSeed(generateSeed().toString());
   };
 
   return (
@@ -139,25 +132,7 @@ export default function TrainingSetupScreen({ navigation }: Props) {
           </Text>
         </View>
 
-        {/* Seed Input */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Race Seed (for replay)</Text>
-          <View style={styles.seedRow}>
-            <TextInput
-              style={styles.seedInput}
-              value={seed}
-              onChangeText={setSeed}
-              keyboardType="number-pad"
-              placeholder="Random seed"
-            />
-            <TouchableOpacity style={styles.randomButton} onPress={handleRandomSeed}>
-              <Text style={styles.randomButtonText}>🎲 Random</Text>
-            </TouchableOpacity>
-          </View>
-          <Text style={styles.helpText}>
-            Same seed = same race outcome (reproducible)
-          </Text>
-        </View>
+        {/* Race Seed and Replay functionality removed for Training Mode */}
 
         {/* Start Button */}
         <TouchableOpacity style={styles.startButton} onPress={handleStart}>
@@ -236,30 +211,6 @@ const styles = StyleSheet.create({
     marginTop: 8,
     fontStyle: "italic",
   },
-  seedRow: {
-    flexDirection: "row",
-    gap: 8,
-  },
-  seedInput: {
-    flex: 1,
-    backgroundColor: "#fff",
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 14,
-  },
-  randomButton: {
-    backgroundColor: "#FF9500",
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    justifyContent: "center",
-  },
-  randomButtonText: {
-    color: "#fff",
-    fontSize: 14,
-    fontWeight: "600",
-  },
   startButton: {
     backgroundColor: "#34C759",
     borderRadius: 12,
@@ -283,4 +234,3 @@ const styles = StyleSheet.create({
     color: "#1976D2",
   },
 });
-

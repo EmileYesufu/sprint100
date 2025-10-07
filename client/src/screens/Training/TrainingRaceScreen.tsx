@@ -30,7 +30,7 @@ type CountdownState = "3" | "2" | "1" | "Go" | null;
 
 export default function TrainingRaceScreen({ route, navigation }: Props) {
   const { config } = route.params;
-  const { raceState, start, tap, result, replay, rerace, abort, isReplayMode } = useTraining();
+  const { raceState, start, tap, result, abort } = useTraining();
   const [countdown, setCountdown] = useState<CountdownState>("3");
   const [raceStarted, setRaceStarted] = useState(false);
   const countdownTimeouts = useRef<NodeJS.Timeout[]>([]);
@@ -61,7 +61,7 @@ export default function TrainingRaceScreen({ route, navigation }: Props) {
     // Block taps during countdown overlay
     if (!raceStarted || countdown !== null) return;
     
-    if (raceState.status === "racing" && !isReplayMode) {
+    if (raceState.status === "racing") {
       tap(side);
     }
   };
@@ -107,33 +107,7 @@ export default function TrainingRaceScreen({ route, navigation }: Props) {
     }
   };
 
-  /**
-   * Rerace with same config - uses same seed for deterministic behavior
-   * IMPORTANT: This passes the exact same seed, so AI will behave identically
-   */
-  const handleRerace = () => {
-    // Clear existing countdown timeouts
-    countdownTimeouts.current.forEach(clearTimeout);
-    countdownTimeouts.current = [];
-    
-    // Reset countdown state
-    setCountdown("3");
-    setRaceStarted(false);
-    
-    // Start new race with same config (preserves seed)
-    rerace();
-    
-    // Restart countdown sequence
-    const timeout1 = setTimeout(() => setCountdown("2"), 700);
-    const timeout2 = setTimeout(() => setCountdown("1"), 1400);
-    const timeout3 = setTimeout(() => setCountdown("Go"), 2100);
-    const timeout4 = setTimeout(() => {
-      setCountdown(null);
-      setRaceStarted(true);
-    }, 2350);
-    
-    countdownTimeouts.current = [timeout1, timeout2, timeout3, timeout4];
-  };
+  // Race Seed and Replay functionality removed for Training Mode
 
   /**
    * Return to TrainingSetupScreen and cleanup all timers/AI runners
@@ -142,10 +116,6 @@ export default function TrainingRaceScreen({ route, navigation }: Props) {
     countdownTimeouts.current.forEach(clearTimeout);
     abort(); // Cleanup all timers and state
     navigation.goBack();
-  };
-
-  const handleReplay = () => {
-    replay();
   };
 
   // Get player and sort runners by position
@@ -240,17 +210,7 @@ export default function TrainingRaceScreen({ route, navigation }: Props) {
             ))}
 
             <View style={styles.resultButtons}>
-              <TouchableOpacity style={styles.resultButton} onPress={handleReplay}>
-                <Text style={styles.resultButtonText}>🔁 Replay</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.resultButton, styles.reraceButton]}
-                onPress={handleRerace}
-              >
-                <Text style={styles.resultButtonText}>↻ Rerace (Same Config)</Text>
-              </TouchableOpacity>
-
+              {/* Race Seed and Replay functionality removed for Training Mode */}
               <TouchableOpacity
                 style={[styles.resultButton, styles.returnHomeButton]}
                 onPress={handleReturnHome}
@@ -258,10 +218,6 @@ export default function TrainingRaceScreen({ route, navigation }: Props) {
                 <Text style={styles.resultButtonText}>🏠 Return Home</Text>
               </TouchableOpacity>
             </View>
-
-            {isReplayMode && (
-              <Text style={styles.replayIndicator}>🎬 REPLAY MODE</Text>
-            )}
           </ScrollView>
         </View>
       )}
@@ -274,7 +230,6 @@ export default function TrainingRaceScreen({ route, navigation }: Props) {
               style={[styles.button, styles.leftButton]}
               onPress={() => handleTap("left")}
               activeOpacity={0.7}
-              disabled={isReplayMode}
             >
               <Text style={styles.buttonText}>LEFT</Text>
             </TouchableOpacity>
@@ -283,7 +238,6 @@ export default function TrainingRaceScreen({ route, navigation }: Props) {
               style={[styles.button, styles.rightButton]}
               onPress={() => handleTap("right")}
               activeOpacity={0.7}
-              disabled={isReplayMode}
             >
               <Text style={styles.buttonText}>RIGHT</Text>
             </TouchableOpacity>
@@ -502,9 +456,6 @@ const styles = StyleSheet.create({
     padding: 16,
     alignItems: "center",
   },
-  reraceButton: {
-    backgroundColor: "#34C759",
-  },
   returnHomeButton: {
     backgroundColor: "#666",
   },
@@ -512,12 +463,5 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
     fontWeight: "600",
-  },
-  replayIndicator: {
-    fontSize: 16,
-    color: "#FF9500",
-    textAlign: "center",
-    marginTop: 16,
-    fontWeight: "bold",
   },
 });
