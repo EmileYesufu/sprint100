@@ -77,12 +77,8 @@ export default function ProfileScreen() {
     <SafeAreaView style={styles.container}>
       {/* Profile Header */}
       <View style={styles.header}>
-        <Text style={styles.title}>Profile</Text>
-        
-        {/* Display logged-in username */}
-        {user.username && (
-          <Text style={styles.username}>@{user.username}</Text>
-        )}
+        {/* Header shows logged-in username only */}
+        <Text style={styles.username}>@{user.username}</Text>
         
         {/* Display Name */}
         <View style={styles.nameContainer}>
@@ -169,15 +165,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#e0e0e0",
   },
-  title: {
-    fontSize: 28,
-    fontWeight: "bold",
-    marginBottom: 8,
-    color: "#333",
-  },
   username: {
-    fontSize: typography.h4.fontSize,
-    fontWeight: typography.h4.fontWeight,
+    fontSize: typography.h2.fontSize,
+    fontWeight: typography.h2.fontWeight,
     color: colors.primary,
     marginBottom: spacing.sp4,
   },
@@ -306,4 +296,3 @@ const styles = StyleSheet.create({
     marginTop: 24,
   },
 });
-
