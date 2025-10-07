@@ -13,6 +13,7 @@ import {
   FlatList,
   ActivityIndicator,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "@/hooks/useAuth";
 import { useSocket } from "@/hooks/useSocket";
 import { formatElo } from "@/utils/formatting";
@@ -97,7 +98,8 @@ export default function QueueScreen({ navigation }: Props) {
   }
 
   return (
-    <View style={styles.container}>
+    // SafeAreaView added to avoid iPhone notch/HUD
+    <SafeAreaView style={styles.container}>
       {/* User Profile Section */}
       <View style={styles.profileSection}>
         <Text style={styles.title}>Sprint100</Text>
@@ -158,7 +160,7 @@ export default function QueueScreen({ navigation }: Props) {
           />
         </View>
       )}
-    </View>
+    </SafeAreaView>
   );
 }
 

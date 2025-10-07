@@ -13,6 +13,7 @@ import {
   TextInput,
   TouchableOpacity,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "@/hooks/useAuth";
 import { SERVER_URL } from "@/config";
 import { formatElo, formatDate } from "@/utils/formatting";
@@ -71,7 +72,8 @@ export default function ProfileScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    // SafeAreaView added to avoid iPhone notch/HUD
+    <SafeAreaView style={styles.container}>
       {/* Profile Header */}
       <View style={styles.header}>
         <Text style={styles.title}>Profile</Text>
@@ -145,7 +147,7 @@ export default function ProfileScreen() {
           />
         )}
       </View>
-    </View>
+    </SafeAreaView>
   );
 }
 

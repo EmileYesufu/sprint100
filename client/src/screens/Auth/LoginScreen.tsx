@@ -15,6 +15,7 @@ import {
   Platform,
   Alert,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "@/hooks/useAuth";
 import { SERVER_URL } from "@/config";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -66,10 +67,12 @@ export default function LoginScreen({ navigation }: Props) {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-    >
+    // SafeAreaView added to avoid iPhone notch/HUD
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#f5f5f5" }}>
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
       <View style={styles.content}>
         <Text style={styles.title}>Sprint100</Text>
         <Text style={styles.subtitle}>Login to your account</Text>
@@ -116,6 +119,7 @@ export default function LoginScreen({ navigation }: Props) {
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 

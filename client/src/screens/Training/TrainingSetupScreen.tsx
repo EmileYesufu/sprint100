@@ -14,6 +14,7 @@ import {
   ScrollView,
   TextInput,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { generateSeed } from "@/utils/seededRandom";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { TrainingStackParamList } from "@/navigation/AppNavigator";
@@ -43,7 +44,9 @@ export default function TrainingSetupScreen({ navigation }: Props) {
   };
 
   return (
-    <ScrollView style={styles.container}>
+    // SafeAreaView added to avoid iPhone notch/HUD
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#f5f5f5" }} edges={["top"]}>
+      <ScrollView style={styles.container}>
       <View style={styles.content}>
         <Text style={styles.title}>Training Mode</Text>
         <Text style={styles.subtitle}>Configure your offline training race</Text>
@@ -169,6 +172,7 @@ export default function TrainingSetupScreen({ navigation }: Props) {
         </View>
       </View>
     </ScrollView>
+    </SafeAreaView>
   );
 }
 

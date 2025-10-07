@@ -13,6 +13,7 @@ import {
   Alert,
   ScrollView,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "@/hooks/useAuth";
 import { useSocket } from "@/hooks/useSocket";
 
@@ -49,7 +50,9 @@ export default function SettingsScreen() {
   };
 
   return (
-    <ScrollView style={styles.container}>
+    // SafeAreaView added to avoid iPhone notch/HUD
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#f5f5f5" }} edges={["top"]}>
+      <ScrollView style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Settings</Text>
       </View>
@@ -119,6 +122,7 @@ export default function SettingsScreen() {
         <Text style={styles.footerText}>Sprint100 - Multiplayer Racing Game</Text>
       </View>
     </ScrollView>
+    </SafeAreaView>
   );
 }
 

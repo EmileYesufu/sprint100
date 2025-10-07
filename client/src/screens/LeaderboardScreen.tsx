@@ -12,6 +12,7 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "@/hooks/useAuth";
 import { SERVER_URL } from "@/config";
 import { formatElo } from "@/utils/formatting";
@@ -90,7 +91,8 @@ export default function LeaderboardScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    // SafeAreaView added to avoid iPhone notch/HUD
+    <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Leaderboard</Text>
         <Text style={styles.subtitle}>Top Players by Elo</Text>
@@ -128,7 +130,7 @@ export default function LeaderboardScreen() {
           }}
         />
       )}
-    </View>
+    </SafeAreaView>
   );
 }
 
