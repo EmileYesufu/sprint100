@@ -156,13 +156,14 @@ export default function TrainingRaceScreen({ route, navigation }: Props) {
 
   return (
     <View style={styles.container}>
-      {/* Quit Button - Top Right */}
+      {/* Quit Button - Top Right (subtle) */}
       {showQuitButton && (
         <TouchableOpacity
           style={styles.quitButton}
           onPress={handleQuitPress}
           accessibilityLabel="Quit race"
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          activeOpacity={0.4}
         >
           <Text style={styles.quitButtonText}>✕</Text>
         </TouchableOpacity>
@@ -303,22 +304,19 @@ const styles = StyleSheet.create({
     top: 50,
     right: 16,
     zIndex: 100,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "rgba(255, 59, 48, 0.9)",
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(60, 60, 60, 0.5)",
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.2)",
   },
   quitButtonText: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#fff",
+    fontSize: 20,
+    fontWeight: "400",
+    color: "rgba(255, 255, 255, 0.7)",
   },
   progressSection: {
     paddingTop: 60,
