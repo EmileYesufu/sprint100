@@ -15,15 +15,29 @@ app.use(express.json());
 const JWT_SECRET = process.env.JWT_SECRET || "dev_secret";
 const PORT = Number(process.env.PORT || 4000);
 
+// Username validation: alphanumeric + underscore, 3-20 chars
+function validateUsername(username: string): boolean {
+  return /^[a-zA-Z0-9_]{3,20}$/.test(username);
+}
+
 app.post("/api/register", async (req, res) => {
-  const { email, password } = req.body;
-  if (!email || !password) return res.status(400).json({ error: "email+password required" });
-  const exists = await prisma.user.findUnique({ where: { email } });
-  if (exists) return res.status(400).json({ error: "user exists" });
+  const { email, password, username } = req.body;
+  if (!email || !password || !username) return res.status(400).json({ error: "email, password, and username required" });
+  
+  if (!validateUsername(username)) {
+    return res.status(400).json({ error: "Invalid username. Use 3-20 alphanumeric characters or underscores." });
+  }
+  
+  const emailExists = await prisma.user.findUnique({ where: { email } });
+  if (emailExists) return res.status(400).json({ error: "email already taken" });
+  
+  const usernameExists = await prisma.user.findUnique({ where: { username } });
+  if (usernameExists) return res.status(400).json({ error: "username already taken" });
+  
   const hash = await bcrypt.hash(password, 10);
-  const user = await prisma.user.create({ data: { email, password: hash } });
+  const user = await prisma.user.create({ data: { email, username, password: hash } });
   const token = jwt.sign({ userId: user.id }, JWT_SECRET);
-  res.json({ token, user: { id: user.id, email: user.email, elo: user.elo } });
+  res.json({ token, user: { id: user.id, email: user.email, username: user.username, elo: user.elo } });
 });
 
 app.post("/api/login", async (req, res) => {
@@ -33,7 +47,35 @@ app.post("/api/login", async (req, res) => {
   const ok = await bcrypt.compare(password, user.password);
   if (!ok) return res.status(401).json({ error: "invalid credentials" });
   const token = jwt.sign({ userId: user.id }, JWT_SECRET);
-  res.json({ token, user: { id: user.id, email: user.email, elo: user.elo } });
+  res.json({ token, user: { id: user.id, email: user.email, username: user.username, elo: user.elo } });
+});
+
+// Search users by username (for challenge feature)
+app.get("/api/users/search", async (req, res) => {
+  const query = req.query.q as string;
+  if (!query || query.length < 2) {
+    return res.status(400).json({ error: "query too short (min 2 chars)" });
+  }
+  
+  try {
+    const users = await prisma.user.findMany({
+      where: {
+        username: {
+          contains: query,
+        },
+      },
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        elo: true,
+      },
+      take: 10, // Limit results
+    });
+    res.json({ users });
+  } catch (error) {
+    res.status(500).json({ error: "search failed" });
+  }
 });
 
 const httpServer = http.createServer(app);
@@ -41,9 +83,11 @@ const io = new SocketIOServer(httpServer, {
   cors: { origin: "*" },
 });
 
-// Simple in-memory queue + matches store (dev only)
-const queue: Array<{ socketId: string; userId: number; email: string; elo: number }> = [];
+// Simple in-memory queue, matches, and challenges store (dev only)
+const queue: Array<{ socketId: string; userId: number; email: string; username: string; elo: number }> = [];
 const matches = new Map<number, any>();
+const challenges = new Map<string, any>(); // key: challengerId-targetId
+const userSockets = new Map<number, string>(); // userId -> socketId mapping
 let matchIdCounter = 1;
 
 io.use(async (socket, next) => {
@@ -54,7 +98,7 @@ io.use(async (socket, next) => {
     const payload: any = jwt.verify(token, JWT_SECRET);
     const user = await prisma.user.findUnique({ where: { id: payload.userId } });
     if (!user) return next(new Error("user not found"));
-    (socket as any).user = { id: user.id, email: user.email, elo: user.elo };
+    (socket as any).user = { id: user.id, email: user.email, username: user.username, elo: user.elo };
     next();
   } catch (err) {
     next(new Error("invalid token"));
@@ -63,11 +107,14 @@ io.use(async (socket, next) => {
 
 io.on("connection", (socket) => {
   const user = (socket as any).user;
-  console.log("connected", user.email);
+  console.log("connected", user.username || user.email);
+  
+  // Register user socket for challenge routing
+  userSockets.set(user.id, socket.id);
 
   socket.on("join_queue", () => {
     if (queue.find((q) => q.socketId === socket.id)) return;
-    queue.push({ socketId: socket.id, userId: user.id, email: user.email, elo: user.elo });
+    queue.push({ socketId: socket.id, userId: user.id, email: user.email, username: user.username, elo: user.elo });
     socket.emit("queue_joined");
     tryPair();
   });
@@ -76,6 +123,115 @@ io.on("connection", (socket) => {
     const idx = queue.findIndex((q) => q.socketId === socket.id);
     if (idx >= 0) queue.splice(idx, 1);
     socket.emit("queue_left");
+  });
+
+  // Challenge system - send challenge to another user by username
+  socket.on("send_challenge", async (payload: { targetUsername: string }) => {
+    try {
+      const targetUser = await prisma.user.findUnique({ where: { username: payload.targetUsername } });
+      if (!targetUser) {
+        socket.emit("challenge_error", { error: "User not found" });
+        return;
+      }
+      
+      if (targetUser.id === user.id) {
+        socket.emit("challenge_error", { error: "Cannot challenge yourself" });
+        return;
+      }
+      
+      const targetSocketId = userSockets.get(targetUser.id);
+      if (!targetSocketId) {
+        socket.emit("challenge_error", { error: "User is offline" });
+        return;
+      }
+      
+      const challengeKey = `${user.id}-${targetUser.id}`;
+      if (challenges.has(challengeKey)) {
+        socket.emit("challenge_error", { error: "Challenge already sent" });
+        return;
+      }
+      
+      // Store challenge
+      const challenge = {
+        challengerId: user.id,
+        challengerUsername: user.username,
+        challengerElo: user.elo,
+        targetId: targetUser.id,
+        targetUsername: targetUser.username,
+        createdAt: Date.now(),
+      };
+      challenges.set(challengeKey, challenge);
+      
+      // Notify target
+      io.to(targetSocketId).emit("challenge_received", {
+        from: user.username,
+        fromId: user.id,
+        fromElo: user.elo,
+      });
+      
+      socket.emit("challenge_sent", { to: targetUser.username });
+    } catch (error) {
+      socket.emit("challenge_error", { error: "Failed to send challenge" });
+    }
+  });
+
+  // Accept challenge
+  socket.on("accept_challenge", async (payload: { fromId: number }) => {
+    const challengeKey = `${payload.fromId}-${user.id}`;
+    const challenge = challenges.get(challengeKey);
+    
+    if (!challenge) {
+      socket.emit("challenge_error", { error: "Challenge not found or expired" });
+      return;
+    }
+    
+    const challengerSocketId = userSockets.get(payload.fromId);
+    if (!challengerSocketId) {
+      socket.emit("challenge_error", { error: "Challenger is offline" });
+      challenges.delete(challengeKey);
+      return;
+    }
+    
+    // Create match (same as queue pairing)
+    const challenger = await prisma.user.findUnique({ where: { id: payload.fromId } });
+    if (!challenger) return;
+    
+    const id = matchIdCounter++;
+    const match = {
+      id,
+      players: [
+        { socketId: challengerSocketId, userId: challenger.id, email: challenger.email, username: challenger.username, elo: challenger.elo, steps: 0, meters: 0, lastSide: null, timeMs: null },
+        { socketId: socket.id, userId: user.id, email: user.email, username: user.username, elo: user.elo, steps: 0, meters: 0, lastSide: null, timeMs: null },
+      ],
+      startedAt: Date.now(),
+    };
+    matches.set(id, match);
+    
+    // Remove challenge
+    challenges.delete(challengeKey);
+    
+    // Notify both players match started
+    match.players.forEach((p: any) => {
+      io.to(p.socketId).emit("match_start", { 
+        matchId: id, 
+        opponent: match.players.find((x: any) => x.socketId !== p.socketId).username || match.players.find((x: any) => x.socketId !== p.socketId).email 
+      });
+    });
+  });
+
+  // Decline challenge
+  socket.on("decline_challenge", (payload: { fromId: number }) => {
+    const challengeKey = `${payload.fromId}-${user.id}`;
+    const challenge = challenges.get(challengeKey);
+    
+    if (challenge) {
+      challenges.delete(challengeKey);
+      
+      const challengerSocketId = userSockets.get(payload.fromId);
+      if (challengerSocketId) {
+        io.to(challengerSocketId).emit("challenge_declined", { by: user.username });
+      }
+    }
   });
 
   socket.on("tap", (payload: { matchId: number; side: "left" | "right"; ts: number }) => {
@@ -108,8 +264,21 @@ io.on("connection", (socket) => {
     // remove from queue
     const idx = queue.findIndex((q) => q.socketId === socket.id);
     if (idx >= 0) queue.splice(idx, 1);
+    
+    // Remove from userSockets mapping
+    userSockets.delete(user.id);
+    
+    // Clean up any challenges from/to this user
+    const challengesToDelete: string[] = [];
+    challenges.forEach((challenge, key) => {
+      if (challenge.challengerId === user.id || challenge.targetId === user.id) {
+        challengesToDelete.push(key);
+      }
+    });
+    challengesToDelete.forEach(key => challenges.delete(key));
+    
     // TODO: handle disconnect during match
-    console.log("disconnected", user.email);
+    console.log("disconnected", user.username || user.email);
   });
 });
 
@@ -127,7 +296,10 @@ function tryPair() {
     };
     matches.set(id, match);
     // notify both players match started
-    match.players.forEach((p: any) => io.to(p.socketId).emit("match_start", { matchId: id, opponent: match.players.find((x: any) => x.socketId !== p.socketId).email }));
+    match.players.forEach((p: any) => {
+      const opp = match.players.find((x: any) => x.socketId !== p.socketId);
+      io.to(p.socketId).emit("match_start", { matchId: id, opponent: opp.username || opp.email });
+    });
   }
 }
 

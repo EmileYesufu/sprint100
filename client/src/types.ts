@@ -7,8 +7,22 @@
 export interface User {
   id: number;
   email: string;
+  username: string;
   elo: number;
   displayName?: string;
+}
+
+export interface UserSearchResult {
+  id: number;
+  username: string;
+  email: string;
+  elo: number;
+}
+
+export interface Challenge {
+  from: string; // username
+  fromId: number;
+  fromElo: number;
 }
 
 export interface MatchState {

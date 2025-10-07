@@ -26,14 +26,20 @@ type Props = NativeStackScreenProps<AuthStackParamList, "Register">;
 export default function RegisterScreen({ navigation }: Props) {
   const { login } = useAuth();
   const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
 
   const handleRegister = async () => {
-    if (!email || !password || !confirmPassword) {
+    if (!email || !username || !password || !confirmPassword) {
       setError("Please fill in all fields");
+      return;
+    }
+
+    if (!/^[a-zA-Z0-9_]{3,20}$/.test(username)) {
+      setError("Username must be 3-20 alphanumeric characters or underscores");
       return;
     }
 
@@ -56,7 +62,7 @@ export default function RegisterScreen({ navigation }: Props) {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, username, password }),
       });
 
       const data = await response.json();
@@ -96,6 +102,16 @@ export default function RegisterScreen({ navigation }: Props) {
           autoCapitalize="none"
           keyboardType="email-address"
           editable={!isLoading}
+        />
+
+        <TextInput
+          style={styles.input}
+          placeholder="Username (3-20 chars, alphanumeric + _)"
+          value={username}
+          onChangeText={setUsername}
+          autoCapitalize="none"
+          editable={!isLoading}
+          maxLength={20}
         />
 
         <TextInput

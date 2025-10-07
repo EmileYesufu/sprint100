@@ -10,7 +10,8 @@ import { User } from "@/types";
 
 interface JWTPayload {
   userId: number;
-  email: string;
+  email?: string;
+  username?: string;
   iat?: number;
   exp?: number;
 }
@@ -44,7 +45,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setToken(storedToken);
         setUser({
           id: decoded.userId,
-          email: decoded.email,
+          email: decoded.email || "",
+          username: decoded.username || "",
           elo: 1000, // Default, will be updated from server
         });
       }
@@ -64,7 +66,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setToken(newToken);
       setUser({
         id: decoded.userId,
-        email: decoded.email,
+        email: decoded.email || "",
+        username: decoded.username || "",
         elo: 1000, // Will be updated from server
       });
     } catch (error) {
