@@ -4,9 +4,10 @@
  * Reuses same UI layout and mechanics as online RaceScreen
  * 
  * Portrait mode enforced via app.json: "orientation": "portrait"
+ * Test: Start a training race and confirm: 3 -> 2 -> 1 -> Go -> overlay disappears -> race visible and taps register.
  */
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import {
   View,
   Text,
@@ -24,40 +25,41 @@ type Props = NativeStackScreenProps<TrainingStackParamList, "TrainingRace">;
 
 const { width, height } = Dimensions.get("window");
 
+type CountdownState = "3" | "2" | "1" | "Go" | null;
+
 export default function TrainingRaceScreen({ route, navigation }: Props) {
   const { config } = route.params;
   const { raceState, start, tap, result, replay, rerace, abort, isReplayMode } = useTraining();
-  const [countdown, setCountdown] = useState<number | null>(null);
+  const [countdown, setCountdown] = useState<CountdownState>("3");
+  const [raceStarted, setRaceStarted] = useState(false);
+  const countdownTimeouts = useRef<NodeJS.Timeout[]>([]);
 
   useEffect(() => {
-    // Start race on mount
+    // Start race on mount with deterministic countdown sequence
     start(config);
+
+    // Deterministic countdown: 3 (700ms) -> 2 (700ms) -> 1 (700ms) -> Go (250ms) -> Start
+    const timeout1 = setTimeout(() => setCountdown("2"), 700);
+    const timeout2 = setTimeout(() => setCountdown("1"), 1400);
+    const timeout3 = setTimeout(() => setCountdown("Go"), 2100);
+    const timeout4 = setTimeout(() => {
+      setCountdown(null); // Hide overlay completely
+      setRaceStarted(true); // Start race only after overlay hidden
+    }, 2350);
+
+    countdownTimeouts.current = [timeout1, timeout2, timeout3, timeout4];
 
     // Cleanup on unmount - abort race and clear all timers
     return () => {
+      countdownTimeouts.current.forEach(clearTimeout);
       abort();
     };
   }, []);
 
-  // Countdown logic
-  useEffect(() => {
-    if (raceState.status === "countdown") {
-      setCountdown(3);
-      const interval = setInterval(() => {
-        setCountdown((prev) => {
-          if (prev === null || prev <= 1) {
-            clearInterval(interval);
-            return null;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-
-      return () => clearInterval(interval);
-    }
-  }, [raceState.status]);
-
   const handleTap = (side: "left" | "right") => {
+    // Block taps during countdown overlay
+    if (!raceStarted || countdown !== null) return;
+    
     if (raceState.status === "racing" && !isReplayMode) {
       tap(side);
     }
@@ -68,14 +70,34 @@ export default function TrainingRaceScreen({ route, navigation }: Props) {
    * IMPORTANT: This passes the exact same seed, so AI will behave identically
    */
   const handleRerace = () => {
-    setCountdown(null);
-    rerace(); // Uses same config including seed
+    // Clear existing countdown timeouts
+    countdownTimeouts.current.forEach(clearTimeout);
+    countdownTimeouts.current = [];
+    
+    // Reset countdown state
+    setCountdown("3");
+    setRaceStarted(false);
+    
+    // Start new race with same config (preserves seed)
+    rerace();
+    
+    // Restart countdown sequence
+    const timeout1 = setTimeout(() => setCountdown("2"), 700);
+    const timeout2 = setTimeout(() => setCountdown("1"), 1400);
+    const timeout3 = setTimeout(() => setCountdown("Go"), 2100);
+    const timeout4 = setTimeout(() => {
+      setCountdown(null);
+      setRaceStarted(true);
+    }, 2350);
+    
+    countdownTimeouts.current = [timeout1, timeout2, timeout3, timeout4];
   };
 
   /**
    * Return to TrainingSetupScreen and cleanup all timers/AI runners
    */
   const handleReturnHome = () => {
+    countdownTimeouts.current.forEach(clearTimeout);
     abort(); // Cleanup all timers and state
     navigation.goBack();
   };
@@ -85,7 +107,6 @@ export default function TrainingRaceScreen({ route, navigation }: Props) {
   };
 
   // Get player and sort runners by position
-  const player = raceState.runners.find((r) => r.isPlayer);
   const sortedRunners = [...raceState.runners].sort((a, b) => b.meters - a.meters);
 
   return (
@@ -125,15 +146,15 @@ export default function TrainingRaceScreen({ route, navigation }: Props) {
         </ScrollView>
 
         {/* Timer */}
-        {raceState.status === "racing" && (
+        {raceState.status === "racing" && raceStarted && (
           <Text style={styles.timer}>
             {(raceState.elapsedMs / 1000).toFixed(2)}s
           </Text>
         )}
       </View>
 
-      {/* Countdown Overlay */}
-      {countdown !== null && countdown > 0 && (
+      {/* Countdown Overlay - Fully unmounts when null */}
+      {countdown !== null && (
         <View style={styles.countdownOverlay}>
           <Text style={styles.countdownText}>{countdown}</Text>
         </View>
@@ -188,7 +209,7 @@ export default function TrainingRaceScreen({ route, navigation }: Props) {
       )}
 
       {/* Tap Buttons - Smaller, positioned at bottom third */}
-      {raceState.status === "racing" && !result && (
+      {raceState.status === "racing" && !result && raceStarted && (
         <View style={styles.buttonArea}>
           <View style={styles.buttonRow}>
             <TouchableOpacity
@@ -223,41 +244,80 @@ const styles = StyleSheet.create({
   progressSection: {
     paddingTop: 60,
     paddingHorizontal: 16,
-    paddingBottom: 20,
+    paddingBottom: 12,
     backgroundColor: "#1C1C1E",
   },
-  playerContainer: {
-    marginBottom: 24,
+  header: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: "#fff",
+    textAlign: "center",
   },
-  playerLabel: {
-    fontSize: 16,
+  subheader: {
+    fontSize: 12,
     color: "#999",
+    textAlign: "center",
+    marginBottom: 12,
+  },
+  runnersContainer: {
+    maxHeight: 200,
+  },
+  runnerRow: {
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 8,
   },
-  myLabel: {
-    color: "#007AFF",
+  runnerInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    width: 80,
+  },
+  position: {
+    fontSize: 14,
     fontWeight: "600",
+    color: "#999",
+    width: 30,
+  },
+  runnerName: {
+    fontSize: 14,
+    color: "#999",
+    flex: 1,
+  },
+  playerText: {
+    color: "#34C759",
+    fontWeight: "700",
   },
   progressBarContainer: {
-    height: 30,
+    flex: 1,
+    height: 20,
     backgroundColor: "#2C2C2E",
-    borderRadius: 15,
+    borderRadius: 10,
     overflow: "hidden",
-    marginBottom: 4,
+    marginHorizontal: 8,
   },
   progressBar: {
     height: "100%",
-    backgroundColor: "#FF3B30",
-    borderRadius: 15,
+    borderRadius: 10,
   },
-  myProgressBar: {
+  playerProgressBar: {
     backgroundColor: "#34C759",
   },
+  aiProgressBar: {
+    backgroundColor: "#FF3B30",
+  },
   metersText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#fff",
+    width: 40,
+    textAlign: "right",
+  },
+  timer: {
     fontSize: 18,
     fontWeight: "bold",
     color: "#fff",
-    textAlign: "right",
+    textAlign: "center",
+    marginTop: 8,
   },
   buttonArea: {
     flex: 1,
