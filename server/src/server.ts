@@ -36,7 +36,7 @@ app.post("/api/register", async (req, res) => {
   
   const hash = await bcrypt.hash(password, 10);
   const user = await prisma.user.create({ data: { email, username, password: hash } });
-  const token = jwt.sign({ userId: user.id }, JWT_SECRET);
+  const token = jwt.sign({ userId: user.id, email: user.email, username: user.username }, JWT_SECRET);
   res.json({ token, user: { id: user.id, email: user.email, username: user.username, elo: user.elo } });
 });
 
@@ -46,7 +46,7 @@ app.post("/api/login", async (req, res) => {
   if (!user) return res.status(401).json({ error: "invalid credentials" });
   const ok = await bcrypt.compare(password, user.password);
   if (!ok) return res.status(401).json({ error: "invalid credentials" });
-  const token = jwt.sign({ userId: user.id }, JWT_SECRET);
+  const token = jwt.sign({ userId: user.id, email: user.email, username: user.username }, JWT_SECRET);
   res.json({ token, user: { id: user.id, email: user.email, username: user.username, elo: user.elo } });
 });
 
