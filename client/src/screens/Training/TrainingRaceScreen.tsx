@@ -32,6 +32,11 @@ export default function TrainingRaceScreen({ route, navigation }: Props) {
   useEffect(() => {
     // Start race on mount
     start(config);
+
+    // Cleanup on unmount - abort race and clear all timers
+    return () => {
+      abort();
+    };
   }, []);
 
   // Countdown logic
