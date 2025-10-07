@@ -1,6 +1,10 @@
 /**
  * Training Mode Hook
  * Manages local training race lifecycle without server interaction
+ * 
+ * TEST: Start a training race, ensure a racer that crosses first keeps first position
+ * in leaderboard and final results even after others finish. Repeat with player finishing
+ * first and finishing last to verify immutable position assignment.
  */
 
 import { useState, useEffect, useRef, useCallback } from "react";
@@ -55,6 +59,30 @@ export function useTraining(): UseTrainingReturn {
   const pausedDuration = useRef<number>(0);
   const playerState = useRef({ steps: 0, meters: 0, lastSide: null as "left" | "right" | null, finished: false });
   const replayIndex = useRef<number>(0);
+  
+  // Immutable finish order tracking - positions are assigned at moment of crossing
+  const finishOrder = useRef<string[]>([]);
+  const finishPositions = useRef<Map<string, { position: number; time: number }>>(new Map());
+
+  /**
+   * Mark a racer as finished and assign immutable position
+   * Position is assigned at moment of crossing and never changes
+   */
+  const markRacerFinished = useCallback((runnerId: string, currentTime: number) => {
+    // Check if already finished (prevent duplicate assignment)
+    if (finishPositions.current.has(runnerId)) {
+      return;
+    }
+    
+    // Add to finish order and assign position
+    finishOrder.current.push(runnerId);
+    const position = finishOrder.current.length;
+    
+    finishPositions.current.set(runnerId, {
+      position,
+      time: currentTime,
+    });
+  }, []);
 
   /**
    * Animation loop for AI updates
@@ -84,12 +112,25 @@ export function useTraining(): UseTrainingReturn {
         });
       });
 
-      if (!ai.getState().finished) {
+      const aiState = ai.getState();
+      
+      // Mark AI as finished when they cross finish line (immutable position assignment)
+      if (aiState.meters >= FINISH_LINE_METERS && !finishPositions.current.has(aiState.id)) {
+        markRacerFinished(aiState.id, elapsed);
+      }
+
+      if (!aiState.finished) {
         allAIFinished = false;
       }
     });
 
-    // Update runner states
+    // Mark player as finished when they cross finish line (immutable position assignment)
+    if (playerState.current.meters >= FINISH_LINE_METERS && !finishPositions.current.has("player")) {
+      markRacerFinished("player", elapsed);
+      playerState.current.finished = true;
+    }
+
+    // Update runner states with immutable finish positions
     const updatedRunners: RunnerState[] = [
       {
         id: "player",
@@ -97,20 +138,23 @@ export function useTraining(): UseTrainingReturn {
         isPlayer: true,
         steps: playerState.current.steps,
         meters: playerState.current.meters,
-        finished: playerState.current.finished,
-        finishTime: playerState.current.finished ? elapsed : undefined,
+        finished: finishPositions.current.has("player"),
+        finishTime: finishPositions.current.get("player")?.time,
+        finishPosition: finishPositions.current.get("player")?.position,
         color: "#34C759",
       },
       ...aiRunners.current.map((ai) => {
         const state = ai.getState();
+        const finishData = finishPositions.current.get(state.id);
         return {
           id: state.id,
           name: state.name,
           isPlayer: false,
           steps: state.steps,
           meters: state.meters,
-          finished: state.finished,
-          finishTime: ai.getFinishTime(),
+          finished: finishPositions.current.has(state.id),
+          finishTime: finishData?.time,
+          finishPosition: finishData?.position,
           color: "#FF3B30",
         };
       }),
@@ -124,7 +168,8 @@ export function useTraining(): UseTrainingReturn {
     }));
 
     // Check if race is finished (ALL racers must cross finish line)
-    const allFinished = allAIFinished && playerState.current.finished;
+    const totalRacers = 1 + aiRunners.current.length; // player + AIs
+    const allFinished = finishOrder.current.length === totalRacers;
     
     if (allFinished) {
       finishRace(updatedRunners, elapsed);
@@ -132,7 +177,7 @@ export function useTraining(): UseTrainingReturn {
     }
 
     animationFrameId.current = requestAnimationFrame(updateLoop);
-  }, [raceState.status, isReplayMode]);
+  }, [raceState.status, isReplayMode, markRacerFinished]);
 
   /**
    * Start training race
@@ -224,11 +269,12 @@ export function useTraining(): UseTrainingReturn {
       stepHistory: [...prev.stepHistory, step],
     }));
 
-    // Check if player finished
-    if (playerState.current.meters >= FINISH_LINE_METERS) {
+    // Check if player finished (mark with immutable position at moment of crossing)
+    if (playerState.current.meters >= FINISH_LINE_METERS && !finishPositions.current.has("player")) {
+      markRacerFinished("player", elapsed);
       playerState.current.finished = true;
     }
-  }, [raceState.status, isReplayMode]);
+  }, [raceState.status, isReplayMode, markRacerFinished]);
 
   /**
    * Pause race
@@ -269,6 +315,9 @@ export function useTraining(): UseTrainingReturn {
     startTimeRef.current = 0;
     pauseTimeRef.current = 0;
     pausedDuration.current = 0;
+    // Clear finish tracking for fresh race
+    finishOrder.current = [];
+    finishPositions.current.clear();
     // Keep config.current for rerace
   }, []);
 
@@ -289,6 +338,9 @@ export function useTraining(): UseTrainingReturn {
     startTimeRef.current = 0;
     pauseTimeRef.current = 0;
     pausedDuration.current = 0;
+    // Clear finish tracking
+    finishOrder.current = [];
+    finishPositions.current.clear();
   }, []);
 
   /**
@@ -312,29 +364,28 @@ export function useTraining(): UseTrainingReturn {
 
   /**
    * Finish race and compute results
+   * Uses immutable finishOrder to preserve positions assigned at moment of crossing
    */
   const finishRace = useCallback(async (runners: RunnerState[], finalTime: number) => {
     if (animationFrameId.current) {
       cancelAnimationFrame(animationFrameId.current);
     }
 
-    // Sort by finish time (or meters if not finished)
+    // Sort by immutable finish position (assigned at moment of crossing)
+    // This ensures positions never change after being assigned
     const sorted = [...runners].sort((a, b) => {
-      if (a.finished && b.finished) {
-        return (a.finishTime || 0) - (b.finishTime || 0);
-      }
-      if (a.finished) return -1;
-      if (b.finished) return 1;
-      return b.meters - a.meters;
+      const posA = a.finishPosition || 999;
+      const posB = b.finishPosition || 999;
+      return posA - posB;
     });
 
     const resultData: TrainingResult = {
       config: config.current!,
-      runners: sorted.map((r, idx) => ({
+      runners: sorted.map((r) => ({
         id: r.id,
         name: r.name,
         isPlayer: r.isPlayer,
-        position: idx + 1,
+        position: r.finishPosition || 999, // Use immutable finish position
         finalMeters: r.meters,
         finishTime: r.finishTime || finalTime,
         steps: r.steps,

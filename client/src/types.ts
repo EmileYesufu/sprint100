@@ -119,6 +119,7 @@ export interface RunnerState {
   meters: number;
   finished: boolean;
   finishTime?: number;
+  finishPosition?: number; // Immutable position assigned at moment of crossing
   color: string;
 }
 

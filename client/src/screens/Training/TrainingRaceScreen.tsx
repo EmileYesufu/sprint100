@@ -4,7 +4,10 @@
  * Reuses same UI layout and mechanics as online RaceScreen
  * 
  * Portrait mode enforced via app.json: "orientation": "portrait"
- * Test: Start a training race and confirm: 3 -> 2 -> 1 -> Go -> overlay disappears -> race visible and taps register.
+ * 
+ * TEST: Start a training race, ensure a racer that crosses first keeps first position
+ * in leaderboard and final results even after others finish. Repeat with player finishing
+ * first and finishing last to verify immutable position assignment.
  */
 
 import React, { useEffect, useState, useRef } from "react";
@@ -118,8 +121,18 @@ export default function TrainingRaceScreen({ route, navigation }: Props) {
     navigation.goBack();
   };
 
-  // Get player and sort runners by position
-  const sortedRunners = [...raceState.runners].sort((a, b) => b.meters - a.meters);
+  // Sort runners: finished by finishPosition (immutable), then unfinished by meters (descending)
+  // This ensures positions are stable once assigned at moment of crossing
+  const sortedRunners = [...raceState.runners].sort((a, b) => {
+    if (a.finishPosition && b.finishPosition) {
+      // Both finished: sort by finish position (lower = better)
+      return a.finishPosition - b.finishPosition;
+    }
+    if (a.finishPosition) return -1; // Finished racers come first
+    if (b.finishPosition) return 1;
+    // Both unfinished: sort by current meters (descending)
+    return b.meters - a.meters;
+  });
 
   // Show quit button during countdown or active race (not on results screen)
   const showQuitButton = raceState.status !== "finished" || !result;
@@ -151,7 +164,7 @@ export default function TrainingRaceScreen({ route, navigation }: Props) {
             <View key={runner.id} style={styles.runnerRow}>
               <View style={styles.runnerInfo}>
                 <Text style={[styles.position, runner.isPlayer && styles.playerText]}>
-                  #{idx + 1}
+                  #{runner.finishPosition || idx + 1}
                 </Text>
                 <Text style={[styles.runnerName, runner.isPlayer && styles.playerText]}>
                   {runner.name}
