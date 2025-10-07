@@ -1,6 +1,6 @@
 /**
  * Training Race Screen
- * Full-screen portrait offline race with AI opponents
+ * Portrait offline race with AI opponents
  * Reuses same UI layout and mechanics as online RaceScreen
  * 
  * Portrait mode enforced via app.json: "orientation": "portrait"
@@ -22,7 +22,7 @@ import type { TrainingStackParamList } from "@/navigation/AppNavigator";
 
 type Props = NativeStackScreenProps<TrainingStackParamList, "TrainingRace">;
 
-const { width } = Dimensions.get("window");
+const { width, height } = Dimensions.get("window");
 
 export default function TrainingRaceScreen({ route, navigation }: Props) {
   const { config } = route.params;
@@ -174,26 +174,26 @@ export default function TrainingRaceScreen({ route, navigation }: Props) {
         </View>
       )}
 
-      {/* Touch Zones */}
-      {raceState.status === "racing" && !result && (
-        <View style={styles.touchZonesContainer}>
-          <TouchableOpacity
-            style={[styles.touchZone, styles.leftZone]}
-            onPress={() => handleTap("left")}
-            activeOpacity={0.6}
-            disabled={isReplayMode}
-          >
-            <Text style={styles.zoneText}>LEFT</Text>
-          </TouchableOpacity>
+      {/* Tap Buttons - Smaller, positioned at bottom third */}
+      {!raceFinished && (
+        <View style={styles.buttonArea}>
+          <View style={styles.buttonRow}>
+            <TouchableOpacity
+              style={[styles.button, styles.leftButton]}
+              onPress={() => handleTap("left")}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.buttonText}>LEFT</Text>
+            </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.touchZone, styles.rightZone]}
-            onPress={() => handleTap("right")}
-            activeOpacity={0.6}
-            disabled={isReplayMode}
-          >
-            <Text style={styles.zoneText}>RIGHT</Text>
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.button, styles.rightButton]}
+              onPress={() => handleTap("right")}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.buttonText}>RIGHT</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       )}
     </View>
@@ -208,101 +208,75 @@ const styles = StyleSheet.create({
   progressSection: {
     paddingTop: 60,
     paddingHorizontal: 16,
-    paddingBottom: 12,
+    paddingBottom: 20,
     backgroundColor: "#1C1C1E",
   },
-  header: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#fff",
-    textAlign: "center",
+  playerContainer: {
+    marginBottom: 24,
   },
-  subheader: {
-    fontSize: 12,
+  playerLabel: {
+    fontSize: 16,
     color: "#999",
-    textAlign: "center",
-    marginBottom: 12,
-  },
-  runnersContainer: {
-    maxHeight: 200,
-  },
-  runnerRow: {
-    flexDirection: "row",
-    alignItems: "center",
     marginBottom: 8,
   },
-  runnerInfo: {
-    flexDirection: "row",
-    alignItems: "center",
-    width: 80,
-  },
-  position: {
-    fontSize: 14,
+  myLabel: {
+    color: "#007AFF",
     fontWeight: "600",
-    color: "#999",
-    width: 30,
-  },
-  runnerName: {
-    fontSize: 14,
-    color: "#999",
-    flex: 1,
-  },
-  playerText: {
-    color: "#34C759",
-    fontWeight: "700",
   },
   progressBarContainer: {
-    flex: 1,
-    height: 20,
+    height: 30,
     backgroundColor: "#2C2C2E",
-    borderRadius: 10,
+    borderRadius: 15,
     overflow: "hidden",
-    marginHorizontal: 8,
+    marginBottom: 4,
   },
   progressBar: {
     height: "100%",
-    borderRadius: 10,
+    backgroundColor: "#FF3B30",
+    borderRadius: 15,
   },
-  playerProgressBar: {
+  myProgressBar: {
     backgroundColor: "#34C759",
   },
-  aiProgressBar: {
-    backgroundColor: "#FF3B30",
-  },
   metersText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#fff",
-    width: 40,
-    textAlign: "right",
-  },
-  timer: {
     fontSize: 18,
     fontWeight: "bold",
     color: "#fff",
-    textAlign: "center",
-    marginTop: 8,
+    textAlign: "right",
   },
-  touchZonesContainer: {
+  buttonArea: {
     flex: 1,
+    justifyContent: "flex-end",
+    paddingBottom: 80,
+    paddingHorizontal: 20,
+  },
+  buttonRow: {
     flexDirection: "row",
+    justifyContent: "center",
+    gap: 20,
   },
-  touchZone: {
-    flex: 1,
+  button: {
+    width: width * 0.42,
+    height: height * 0.22,
+    borderRadius: 50,
     justifyContent: "center",
     alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
-  leftZone: {
+  leftButton: {
     backgroundColor: "#1E3A8A",
   },
-  rightZone: {
+  rightButton: {
     backgroundColor: "#7C2D12",
   },
-  zoneText: {
-    fontSize: 32,
+  buttonText: {
+    fontSize: 28,
     fontWeight: "bold",
     color: "#fff",
-    opacity: 0.5,
   },
   countdownOverlay: {
     position: "absolute",
@@ -325,74 +299,18 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: "rgba(0, 0, 0, 0.95)",
-  },
-  resultContent: {
-    padding: 24,
-    paddingTop: 60,
-  },
-  resultTitle: {
-    fontSize: 32,
-    fontWeight: "bold",
-    color: "#fff",
-    textAlign: "center",
-    marginBottom: 24,
-  },
-  resultRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#1C1C1E",
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 8,
-  },
-  resultPosition: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#999",
-    width: 40,
-  },
-  resultName: {
-    flex: 1,
-    fontSize: 16,
-    color: "#999",
-  },
-  resultTime: {
-    fontSize: 14,
-    color: "#fff",
-    marginRight: 12,
-  },
-  resultMeters: {
-    fontSize: 14,
-    color: "#666",
-  },
-  resultButtons: {
-    marginTop: 24,
-    gap: 12,
-  },
-  resultButton: {
-    backgroundColor: "#007AFF",
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: "rgba(0, 0, 0, 0.9)",
+    justifyContent: "center",
     alignItems: "center",
   },
-  rematchButton: {
-    backgroundColor: "#34C759",
-  },
-  backButton: {
-    backgroundColor: "#666",
-  },
-  resultButtonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  replayIndicator: {
-    fontSize: 16,
-    color: "#FF9500",
-    textAlign: "center",
-    marginTop: 16,
+  resultText: {
+    fontSize: 36,
     fontWeight: "bold",
+    color: "#fff",
+    marginBottom: 16,
+  },
+  resultSubtext: {
+    fontSize: 16,
+    color: "#999",
   },
 });
-

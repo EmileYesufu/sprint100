@@ -1,7 +1,9 @@
 /**
  * Race Screen
- * Full-screen portrait race interface with two touch zones (left/right)
+ * Portrait race interface with tap buttons for left/right foot taps
  * Shows real-time race progress and handles tap events
+ * 
+ * Portrait mode enforced via app.json: "orientation": "portrait"
  */
 
 import React, { useState, useEffect, useRef } from "react";
@@ -117,9 +119,6 @@ export default function RaceScreen({ route, navigation }: Props) {
 
   return (
     <View style={styles.container}>
-      {/* Orientation hint - Portrait only */}
-      {/* To enforce portrait: ensure app.json has "orientation": "portrait" */}
-      
       {/* Progress Bars */}
       <View style={styles.progressSection}>
         {/* Opponent Progress */}
@@ -156,24 +155,26 @@ export default function RaceScreen({ route, navigation }: Props) {
         </View>
       )}
 
-      {/* Touch Zones */}
+      {/* Tap Buttons - Smaller, positioned at bottom third */}
       {!raceFinished && (
-        <View style={styles.touchZonesContainer}>
-          <TouchableOpacity
-            style={[styles.touchZone, styles.leftZone]}
-            onPress={() => handleTap("left")}
-            activeOpacity={0.6}
-          >
-            <Text style={styles.zoneText}>LEFT</Text>
-          </TouchableOpacity>
+        <View style={styles.buttonArea}>
+          <View style={styles.buttonRow}>
+            <TouchableOpacity
+              style={[styles.button, styles.leftButton]}
+              onPress={() => handleTap("left")}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.buttonText}>LEFT</Text>
+            </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.touchZone, styles.rightZone]}
-            onPress={() => handleTap("right")}
-            activeOpacity={0.6}
-          >
-            <Text style={styles.zoneText}>RIGHT</Text>
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.button, styles.rightButton]}
+              onPress={() => handleTap("right")}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.buttonText}>RIGHT</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       )}
     </View>
@@ -224,26 +225,39 @@ const styles = StyleSheet.create({
     color: "#fff",
     textAlign: "right",
   },
-  touchZonesContainer: {
+  buttonArea: {
     flex: 1,
-    flexDirection: "row",
+    justifyContent: "flex-end",
+    paddingBottom: 80,
+    paddingHorizontal: 20,
   },
-  touchZone: {
-    flex: 1,
+  buttonRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 20,
+  },
+  button: {
+    width: width * 0.42,
+    height: height * 0.22,
+    borderRadius: 50,
     justifyContent: "center",
     alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
-  leftZone: {
+  leftButton: {
     backgroundColor: "#1E3A8A",
   },
-  rightZone: {
+  rightButton: {
     backgroundColor: "#7C2D12",
   },
-  zoneText: {
-    fontSize: 32,
+  buttonText: {
+    fontSize: 28,
     fontWeight: "bold",
     color: "#fff",
-    opacity: 0.5,
   },
   countdownOverlay: {
     position: "absolute",
@@ -281,4 +295,3 @@ const styles = StyleSheet.create({
     color: "#999",
   },
 });
-
