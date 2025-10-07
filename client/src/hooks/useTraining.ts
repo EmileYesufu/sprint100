@@ -69,7 +69,7 @@ export function useTraining(): UseTrainingReturn {
 
     // Update all AI runners
     const newSteps: RunnerStep[] = [];
-    let anyFinished = false;
+    let allAIFinished = true;
 
     aiRunners.current.forEach((ai) => {
       const aiSteps = ai.update(elapsed);
@@ -84,8 +84,8 @@ export function useTraining(): UseTrainingReturn {
         });
       });
 
-      if (ai.getState().finished) {
-        anyFinished = true;
+      if (!ai.getState().finished) {
+        allAIFinished = false;
       }
     });
 
@@ -123,8 +123,10 @@ export function useTraining(): UseTrainingReturn {
       stepHistory: [...prev.stepHistory, ...newSteps],
     }));
 
-    // Check if race is finished (any runner crossed finish line)
-    if (anyFinished || playerState.current.finished) {
+    // Check if race is finished (ALL racers must cross finish line)
+    const allFinished = allAIFinished && playerState.current.finished;
+    
+    if (allFinished) {
       finishRace(updatedRunners, elapsed);
       return;
     }
