@@ -175,13 +175,14 @@ export default function TrainingRaceScreen({ route, navigation }: Props) {
       )}
 
       {/* Tap Buttons - Smaller, positioned at bottom third */}
-      {!raceFinished && (
+      {raceState.status === "racing" && !result && (
         <View style={styles.buttonArea}>
           <View style={styles.buttonRow}>
             <TouchableOpacity
               style={[styles.button, styles.leftButton]}
               onPress={() => handleTap("left")}
               activeOpacity={0.7}
+              disabled={isReplayMode}
             >
               <Text style={styles.buttonText}>LEFT</Text>
             </TouchableOpacity>
@@ -190,6 +191,7 @@ export default function TrainingRaceScreen({ route, navigation }: Props) {
               style={[styles.button, styles.rightButton]}
               onPress={() => handleTap("right")}
               activeOpacity={0.7}
+              disabled={isReplayMode}
             >
               <Text style={styles.buttonText}>RIGHT</Text>
             </TouchableOpacity>
