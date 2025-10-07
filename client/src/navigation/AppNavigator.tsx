@@ -20,6 +20,10 @@ import RegisterScreen from "@/screens/Auth/RegisterScreen";
 import QueueScreen from "@/screens/Race/QueueScreen";
 import RaceScreen from "@/screens/Race/RaceScreen";
 
+// Training Screens
+import TrainingSetupScreen from "@/screens/Training/TrainingSetupScreen";
+import TrainingRaceScreen from "@/screens/Training/TrainingRaceScreen";
+
 // Other Screens
 import ProfileScreen from "@/screens/ProfileScreen";
 import LeaderboardScreen from "@/screens/LeaderboardScreen";
@@ -43,8 +47,21 @@ export type RaceStackParamList = {
   };
 };
 
+export type TrainingStackParamList = {
+  TrainingSetup: undefined;
+  TrainingRace: {
+    config: {
+      aiCount: 1 | 3 | 7;
+      difficulty: "Easy" | "Medium" | "Hard";
+      personality: "Consistent" | "Erratic" | "Aggressive";
+      seed: number;
+    };
+  };
+};
+
 export type MainTabsParamList = {
   RaceTab: undefined;
+  TrainingTab: undefined;
   Profile: undefined;
   Leaderboard: undefined;
   Settings: undefined;
@@ -58,6 +75,7 @@ export type RootStackParamList = {
 // Stack and Tab Navigators
 const AuthStack = createNativeStackNavigator<AuthStackParamList>();
 const RaceStack = createNativeStackNavigator<RaceStackParamList>();
+const TrainingStack = createNativeStackNavigator<TrainingStackParamList>();
 const MainTabs = createBottomTabNavigator<MainTabsParamList>();
 
 // Auth Stack Navigator (Login/Register)
@@ -95,6 +113,27 @@ function RaceNavigator() {
   );
 }
 
+// Training Stack Navigator (Setup -> Race)
+function TrainingNavigator() {
+  return (
+    <TrainingStack.Navigator>
+      <TrainingStack.Screen
+        name="TrainingSetup"
+        component={TrainingSetupScreen}
+        options={{ headerShown: false }}
+      />
+      <TrainingStack.Screen
+        name="TrainingRace"
+        component={TrainingRaceScreen}
+        options={{
+          headerShown: false,
+          gestureEnabled: false, // Prevent swipe back during race
+        }}
+      />
+    </TrainingStack.Navigator>
+  );
+}
+
 // Main Tabs Navigator (Bottom Tabs)
 function MainNavigator() {
   return (
@@ -114,8 +153,16 @@ function MainNavigator() {
         name="RaceTab"
         component={RaceNavigator}
         options={{
-          tabBarLabel: "Race",
-          tabBarIcon: ({ color }) => <TabIcon name="🏃" color={color} />,
+          tabBarLabel: "Online",
+          tabBarIcon: ({ color }) => <TabIcon name="🌐" color={color} />,
+        }}
+      />
+      <MainTabs.Screen
+        name="TrainingTab"
+        component={TrainingNavigator}
+        options={{
+          tabBarLabel: "Training",
+          tabBarIcon: ({ color }) => <TabIcon name="🎯" color={color} />,
         }}
       />
       <MainTabs.Screen

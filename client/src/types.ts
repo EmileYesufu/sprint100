@@ -2,6 +2,8 @@
  * Shared TypeScript types for the Sprint100 client
  */
 
+// ===== ONLINE MULTIPLAYER TYPES =====
+
 export interface User {
   id: number;
   email: string;
@@ -68,3 +70,82 @@ export interface MatchHistoryEntry {
   createdAt: string;
 }
 
+// ===== OFFLINE TRAINING MODE TYPES =====
+
+export type AIDifficulty = "Easy" | "Medium" | "Hard";
+export type AIPersonality = "Consistent" | "Erratic" | "Aggressive";
+
+export interface AIConfig {
+  difficulty: AIDifficulty;
+  personality: AIPersonality;
+  seed: number;
+  seedOffset: number; // Unique offset for each AI to differentiate them
+}
+
+export interface TrainingConfig {
+  aiCount: 1 | 3 | 7;
+  difficulty: AIDifficulty;
+  personality: AIPersonality;
+  seed: number;
+}
+
+export interface RunnerStep {
+  runnerId: string;
+  timestamp: number;
+  side: "left" | "right";
+  totalSteps: number;
+  meters: number;
+}
+
+export interface RunnerState {
+  id: string;
+  name: string;
+  isPlayer: boolean;
+  steps: number;
+  meters: number;
+  finished: boolean;
+  finishTime?: number;
+  color: string;
+}
+
+export interface TrainingRaceState {
+  status: "setup" | "countdown" | "racing" | "finished";
+  startTime?: number;
+  elapsedMs: number;
+  runners: RunnerState[];
+  stepHistory: RunnerStep[];
+}
+
+export interface TrainingResult {
+  config: TrainingConfig;
+  runners: Array<{
+    id: string;
+    name: string;
+    isPlayer: boolean;
+    position: number;
+    finalMeters: number;
+    finishTime: number;
+    steps: number;
+  }>;
+  seed: number;
+  completedAt: string;
+}
+
+export interface AIState {
+  id: string;
+  name: string;
+  config: AIConfig;
+  steps: number;
+  meters: number;
+  finished: boolean;
+  nextStepTime: number;
+  lastSide: "left" | "right" | null;
+}
+
+export interface TrainingRecord {
+  difficulty: AIDifficulty;
+  aiCount: number;
+  bestPosition: number;
+  bestTime: number;
+  date: string;
+}
