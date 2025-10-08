@@ -14,6 +14,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "@/hooks/useAuth";
@@ -68,33 +69,48 @@ export default function LoginScreen({ navigation }: Props) {
 
   return (
     // SafeAreaView added to avoid iPhone notch/HUD
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#f5f5f5" }}>
+    <SafeAreaView style={styles.safeArea}>
       <KeyboardAvoidingView
         style={styles.container}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
       <View style={styles.content}>
-        <Text style={styles.title}>Sprint100</Text>
-        <Text style={styles.subtitle}>Login to your account</Text>
+        {/* App Icon */}
+        <View style={styles.iconContainer}>
+          <Image 
+            source={require("../../assets/icon.png")} 
+            style={styles.appIcon}
+            resizeMode="contain"
+          />
+        </View>
+        
+        <Text style={styles.title}>Sprint 100</Text>
+        <Text style={styles.subtitle}>Login to start the race</Text>
 
-        <TextInput
-          style={styles.input}
-          placeholder="Email"
-          value={email}
-          onChangeText={setEmail}
-          autoCapitalize="none"
-          keyboardType="email-address"
-          editable={!isLoading}
-        />
+        <View style={styles.inputContainer}>
+          <Text style={styles.inputLabel}>Username</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Enter your username"
+            value={email}
+            onChangeText={setEmail}
+            autoCapitalize="none"
+            keyboardType="email-address"
+            editable={!isLoading}
+          />
+        </View>
 
-        <TextInput
-          style={styles.input}
-          placeholder="Password"
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-          editable={!isLoading}
-        />
+        <View style={styles.inputContainer}>
+          <Text style={styles.inputLabel}>Password</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Enter your password"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+            editable={!isLoading}
+          />
+        </View>
 
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
@@ -115,7 +131,8 @@ export default function LoginScreen({ navigation }: Props) {
           onPress={() => navigation.navigate("Register")}
           disabled={isLoading}
         >
-          <Text style={styles.linkText}>Don't have an account? Register</Text>
+          <Text style={styles.linkText}>Don't have an account? </Text>
+          <Text style={styles.linkTextBold}>Sign up</Text>
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>
@@ -124,36 +141,69 @@ export default function LoginScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: "#0A1F44", // Dark navy blue
+  },
   container: {
     flex: 1,
-    backgroundColor: "#f5f5f5",
+    backgroundColor: "#0A1F44", // Dark navy blue
   },
   content: {
     flex: 1,
     justifyContent: "center",
     padding: 24,
+    backgroundColor: "#1A2B5C", // Slightly lighter blue for the card
+    margin: 20,
+    borderRadius: 16,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  iconContainer: {
+    alignItems: "center",
+    marginBottom: 24,
+  },
+  appIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 16,
   },
   title: {
     fontSize: 32,
     fontWeight: "bold",
     textAlign: "center",
     marginBottom: 8,
-    color: "#333",
+    color: "#FFFFFF",
   },
   subtitle: {
     fontSize: 16,
     textAlign: "center",
     marginBottom: 32,
-    color: "#666",
+    color: "#B0B0B0",
+  },
+  inputContainer: {
+    marginBottom: 16,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#FFFFFF",
+    marginBottom: 8,
   },
   input: {
-    backgroundColor: "#fff",
+    backgroundColor: "#2A3B5C",
     borderWidth: 1,
-    borderColor: "#ddd",
+    borderColor: "#4A5B7C",
     borderRadius: 8,
     padding: 12,
-    marginBottom: 16,
     fontSize: 16,
+    color: "#FFFFFF",
   },
   button: {
     backgroundColor: "#007AFF",
@@ -163,7 +213,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   buttonDisabled: {
-    backgroundColor: "#999",
+    backgroundColor: "#4A5B7C",
   },
   buttonText: {
     color: "#fff",
@@ -173,14 +223,22 @@ const styles = StyleSheet.create({
   linkButton: {
     marginTop: 16,
     padding: 8,
+    flexDirection: "row",
+    justifyContent: "center",
   },
   linkText: {
-    color: "#007AFF",
+    color: "#B0B0B0",
     textAlign: "center",
     fontSize: 14,
   },
+  linkTextBold: {
+    color: "#007AFF",
+    textAlign: "center",
+    fontSize: 14,
+    fontWeight: "600",
+  },
   errorText: {
-    color: "#ff3b30",
+    color: "#FF6B6B",
     marginBottom: 12,
     textAlign: "center",
   },
