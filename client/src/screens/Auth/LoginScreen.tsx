@@ -78,7 +78,7 @@ export default function LoginScreen({ navigation }: Props) {
         {/* App Icon */}
         <View style={styles.iconContainer}>
           <Image 
-            source={require("../../assets/icon.png")} 
+            source={require("../../../assets/icon.png")} 
             style={styles.appIcon}
             resizeMode="contain"
           />
