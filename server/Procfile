@@ -1,0 +1,2 @@
+web: cd server && npm run start:prod
+release: cd server && npx prisma migrate deploy

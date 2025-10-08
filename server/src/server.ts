@@ -2,17 +2,50 @@ import express from "express";
 import http from "http";
 import { Server as SocketIOServer } from "socket.io";
 import cors from "cors";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
+import morgan from "morgan";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { PrismaClient } from "@prisma/client";
 import { calculateEloChange } from "./utils/elo";
+import { 
+  HOST, 
+  PORT, 
+  JWT_SECRET, 
+  ALLOWED_ORIGINS, 
+  NODE_ENV,
+  RATE_LIMIT_WINDOW_MS,
+  RATE_LIMIT_MAX,
+  ENABLE_REQUEST_LOGGING
+} from "./config";
 
 const prisma = new PrismaClient();
 const app = express();
 
-// CORS configuration - allow all origins for development
+// Security headers (helmet)
+app.use(helmet({
+  contentSecurityPolicy: NODE_ENV === "production",
+}));
+
+// Request logging (morgan)
+if (ENABLE_REQUEST_LOGGING) {
+  app.use(morgan(NODE_ENV === "production" ? "combined" : "dev"));
+}
+
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: RATE_LIMIT_WINDOW_MS,
+  max: RATE_LIMIT_MAX,
+  message: { error: "Too many requests, please try again later" },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use("/api/", limiter);
+
+// CORS configuration - use configured origins
 app.use(cors({
-  origin: '*',
+  origin: ALLOWED_ORIGINS,
   credentials: true,
 }));
 
@@ -20,8 +53,19 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-const JWT_SECRET = process.env.JWT_SECRET || "dev_secret";
-const PORT = Number(process.env.PORT || 4000);
+// Health check endpoints
+app.get("/health", (req, res) => {
+  res.json({ status: "ok", timestamp: new Date().toISOString() });
+});
+
+app.get("/ready", async (req, res) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    res.json({ status: "ready", database: "connected", timestamp: new Date().toISOString() });
+  } catch (error) {
+    res.status(503).json({ status: "not ready", database: "disconnected", error: "Database connection failed" });
+  }
+});
 
 // Username validation: alphanumeric + underscore, 3-20 chars
 function validateUsername(username: string): boolean {
@@ -88,7 +132,10 @@ app.get("/api/users/search", async (req, res) => {
 
 const httpServer = http.createServer(app);
 const io = new SocketIOServer(httpServer, {
-  cors: { origin: "*" },
+  cors: { 
+    origin: ALLOWED_ORIGINS,
+    credentials: true,
+  },
 });
 
 // Simple in-memory queue, matches, and challenges store (dev only)
@@ -343,8 +390,15 @@ async function endMatch(match: any, finishedPlayers: any[]) {
   matches.delete(match.id);
 }
 
-httpServer.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server listening on http://0.0.0.0:${PORT}`);
-  console.log(`Accessible at http://localhost:${PORT}`);
-  console.log(`Network access: http://192.168.1.250:${PORT}`);
+httpServer.listen(PORT, HOST, () => {
+  console.log(`\n🚀 Sprint100 Server Started`);
+  console.log(`   Environment: ${NODE_ENV}`);
+  console.log(`   Listening on: http://${HOST}:${PORT}`);
+  console.log(`   Local access: http://localhost:${PORT}`);
+  console.log(`   Health check: http://localhost:${PORT}/health`);
+  if (HOST === "0.0.0.0") {
+    console.log(`   Network access: http://192.168.1.250:${PORT}`);
+    console.log(`\n💡 To expose publicly, run: npm run start:ngrok`);
+  }
+  console.log("");
 });
