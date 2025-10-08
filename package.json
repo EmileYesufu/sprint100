@@ -1,0 +1,25 @@
+{
+  "name": "sprint100",
+  "version": "1.0.0",
+  "description": "Sprint100 - React Native racing game with online multiplayer",
+  "private": true,
+  "scripts": {
+    "dev:server": "cd server && npm run dev",
+    "dev:client": "cd client && npx expo start",
+    "testers:start": "concurrently \"cd server && npm run dev\" \"cd client && npx expo start --tunnel\"",
+    "testers:install": "npm install && cd server && npm install && cd ../client && npm install",
+    "testers:setup": "npm run testers:install && echo 'Setup complete! Run npm run testers:start to begin testing.'"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "keywords": [
+    "react-native",
+    "expo",
+    "racing",
+    "multiplayer",
+    "socket.io"
+  ],
+  "author": "",
+  "license": "ISC"
+}
