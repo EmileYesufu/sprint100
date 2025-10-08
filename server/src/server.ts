@@ -9,8 +9,16 @@ import { calculateEloChange } from "./utils/elo";
 
 const prisma = new PrismaClient();
 const app = express();
-app.use(cors());
-app.use(express.json());
+
+// CORS configuration - allow all origins for development
+app.use(cors({
+  origin: '*',
+  credentials: true,
+}));
+
+// Body parsing middleware
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 const JWT_SECRET = process.env.JWT_SECRET || "dev_secret";
 const PORT = Number(process.env.PORT || 4000);
