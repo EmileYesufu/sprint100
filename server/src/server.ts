@@ -335,6 +335,8 @@ async function endMatch(match: any, finishedPlayers: any[]) {
   matches.delete(match.id);
 }
 
-httpServer.listen(PORT, () => {
-  console.log(`Server listening on http://localhost:${PORT}`);
+httpServer.listen(PORT, '0.0.0.0', () => {
+  console.log(`Server listening on http://0.0.0.0:${PORT}`);
+  console.log(`Accessible at http://localhost:${PORT}`);
+  console.log(`Network access: http://192.168.1.250:${PORT}`);
 });
