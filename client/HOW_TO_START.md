@@ -1,6 +1,6 @@
 # 📱 How to Start Sprint100 on iPhone
 
-## Simple 2-Step Process
+## Super Simple - Just 2 Steps!
 
 ### Step 1: Start the App
 ```bash
@@ -17,25 +17,31 @@ npm start
 
 ---
 
+## Important Notes
+
+**WiFi Required:**
+- Your iPhone must be on the **same WiFi** as your Mac
+- Check both devices are on the same network
+
+**First Load:**
+- Takes 20-30 seconds (bundling code)
+- This is normal!
+- Second load: 2-3 seconds
+
+---
+
+## Alternative: Tunnel Mode
+
+If same WiFi doesn't work, use tunnel mode:
+
+```bash
+npm run start:tunnel
+```
+
+This works even if devices are on different networks!
+
+---
+
 ## That's It!
 
-- `npm start` shows the QR code
-- Scan with Expo Go
-- Wait 30 seconds for first load
-- Then it's fast!
-
----
-
-## Troubleshooting
-
-**If timeout:**
-- Make sure both Mac and iPhone on same WiFi
-- Or just use tunnel mode (already enabled)
-
-**If still issues:**
-- Try: `npm run start:lan` for local network
-- Or use iOS Simulator: press 'i' after `npm start`
-
----
-
-**Just run `npm start` and scan!** 📱
+Just `npm start` and scan with Expo Go! 📱
