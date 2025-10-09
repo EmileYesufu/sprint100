@@ -6,7 +6,7 @@
  */
 
 import React from "react";
-import { NavigationContainer } from "@react-navigation/native";
+import { NavigationContainer, getFocusedRouteNameFromRoute } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { ActivityIndicator, View, StyleSheet, Text } from "react-native";
@@ -138,15 +138,25 @@ function TrainingNavigator() {
 function MainNavigator() {
   return (
     <MainTabs.Navigator
-      screenOptions={{
-        headerShown: false,
-        tabBarActiveTintColor: "#007AFF",
-        tabBarInactiveTintColor: "#999",
-        tabBarStyle: {
-          backgroundColor: "#fff",
-          borderTopWidth: 1,
-          borderTopColor: "#e0e0e0",
-        },
+      screenOptions={({ route }) => {
+        // Get the currently focused route name from nested navigators
+        const routeName = getFocusedRouteNameFromRoute(route) ?? "";
+        
+        // Hide tab bar when on race screens (both online and training)
+        const isRaceScreen = routeName === "Race" || routeName === "TrainingRace";
+        
+        return {
+          headerShown: false,
+          tabBarActiveTintColor: "#007AFF",
+          tabBarInactiveTintColor: "#999",
+          tabBarStyle: isRaceScreen
+            ? { display: "none" }
+            : {
+                backgroundColor: "#fff",
+                borderTopWidth: 1,
+                borderTopColor: "#e0e0e0",
+              },
+        };
       }}
     >
       <MainTabs.Screen
