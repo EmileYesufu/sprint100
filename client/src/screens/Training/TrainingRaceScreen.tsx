@@ -58,7 +58,7 @@ function getAccessibilityLabel(position: number | undefined): string {
 
 export default function TrainingRaceScreen({ route, navigation }: Props) {
   const { config } = route.params;
-  const { raceState, start, tap, result, abort } = useTraining();
+  const { raceState, start, tap, result, abort, isLocallyEnded, localEndResult } = useTraining();
   const [countdown, setCountdown] = useState<CountdownState>("3");
   const [raceStarted, setRaceStarted] = useState(false);
   const countdownTimeouts = useRef<NodeJS.Timeout[]>([]);
@@ -86,8 +86,8 @@ export default function TrainingRaceScreen({ route, navigation }: Props) {
   }, []);
 
   const handleTap = (side: "left" | "right") => {
-    // Block taps during countdown overlay
-    if (!raceStarted || countdown !== null) return;
+    // Block taps during countdown overlay or when locally ended (threshold reached)
+    if (!raceStarted || countdown !== null || isLocallyEnded) return;
     
     if (raceState.status === "racing") {
       tap(side);
@@ -241,6 +241,13 @@ export default function TrainingRaceScreen({ route, navigation }: Props) {
             {(raceState.elapsedMs / 1000).toFixed(2)}s
           </Text>
         )}
+
+        {/* Local early finish indicator (training mode: local end is final) */}
+        {isLocallyEnded && localEndResult && !result && (
+          <Text style={styles.earlyFinishText}>
+            Race ended — top {localEndResult.threshold} finished
+          </Text>
+        )}
       </View>
 
       {/* Countdown Overlay - Fully unmounts when null */}
@@ -303,19 +310,33 @@ export default function TrainingRaceScreen({ route, navigation }: Props) {
         <View style={styles.buttonArea}>
           <View style={styles.buttonRow}>
             <TouchableOpacity
-              style={[styles.button, styles.leftButton]}
+              style={[
+                styles.button,
+                styles.leftButton,
+                isLocallyEnded && styles.buttonDisabled,
+              ]}
               onPress={() => handleTap("left")}
-              activeOpacity={0.7}
+              activeOpacity={isLocallyEnded ? 1 : 0.7}
+              disabled={isLocallyEnded}
             >
-              <Text style={styles.buttonText}>LEFT</Text>
+              <Text style={[styles.buttonText, isLocallyEnded && styles.buttonTextDisabled]}>
+                LEFT
+              </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.button, styles.rightButton]}
+              style={[
+                styles.button,
+                styles.rightButton,
+                isLocallyEnded && styles.buttonDisabled,
+              ]}
               onPress={() => handleTap("right")}
-              activeOpacity={0.7}
+              activeOpacity={isLocallyEnded ? 1 : 0.7}
+              disabled={isLocallyEnded}
             >
-              <Text style={styles.buttonText}>RIGHT</Text>
+              <Text style={[styles.buttonText, isLocallyEnded && styles.buttonTextDisabled]}>
+                RIGHT
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -471,6 +492,19 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: "bold",
     color: "#fff",
+  },
+  buttonDisabled: {
+    opacity: 0.3,
+  },
+  buttonTextDisabled: {
+    opacity: 0.5,
+  },
+  earlyFinishText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#FFD700",
+    textAlign: "center",
+    marginTop: 8,
   },
   countdownOverlay: {
     position: "absolute",

@@ -164,3 +164,27 @@ export interface TrainingRecord {
   bestTime: number;
   date: string;
 }
+
+// ===== RACE FINISH THRESHOLD TYPES =====
+
+/**
+ * Local end result when threshold is reached (client-side only)
+ * Used for early finish UI when top N racers complete
+ */
+export interface LocalEndResult {
+  endedAt: number;           // Timestamp when local end triggered
+  finishOrder: string[];     // Array of racer IDs in finishing order at local end
+  threshold: number;         // The threshold that was met (e.g., 3 for 4-racer, 4 for 8-racer)
+  totalRacers: number;       // Total racers in the race
+  runners: RunnerState[];    // Snapshot of runner states at local end
+}
+
+/**
+ * Race control flags for managing local end state
+ */
+export interface RaceControlFlags {
+  isLocallyEnded: boolean;   // True when local threshold met (disables input)
+  isServerEnded: boolean;    // True when server confirms race end (online only)
+  shouldShowLocalOverlay: boolean;  // Show local early finish overlay
+  shouldShowServerOverlay: boolean; // Show server results overlay
+}

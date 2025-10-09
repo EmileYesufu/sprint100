@@ -18,7 +18,8 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import { useSocket } from "@/hooks/useSocket";
 import { metersToPct } from "@/utils/formatting";
-import type { RaceUpdate, MatchResult, PlayerState } from "@/types";
+import { computeFinishThreshold, hasReachedThreshold } from "@/utils/finishThreshold";
+import type { RaceUpdate, MatchResult, PlayerState, LocalEndResult } from "@/types";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { RaceStackParamList } from "@/navigation/AppNavigator";
 
@@ -38,7 +39,14 @@ export default function RaceScreen({ route, navigation }: Props) {
   const [opponentMeters, setOpponentMeters] = useState(0);
   const [result, setResult] = useState<MatchResult | null>(null);
   
+  // Client-local early end threshold logic — does not replace server authoritative end.
+  // For online matches we show a local early finish overlay but wait for server.match_end to reconcile.
+  const [isLocallyEnded, setIsLocallyEnded] = useState(false);
+  const [localEndResult, setLocalEndResult] = useState<LocalEndResult | null>(null);
+  const [serverResultReceived, setServerResultReceived] = useState(false);
+  
   const lastSide = useRef<"left" | "right" | null>(null);
+  const finishedPlayers = useRef<Set<number>>(new Set()); // Track who has finished
 
   // Countdown timer
   useEffect(() => {
@@ -62,19 +70,42 @@ export default function RaceScreen({ route, navigation }: Props) {
     const handleRaceUpdate = (update: RaceUpdate) => {
       if (update.matchId !== matchId) return;
 
-      // Update meters for both players
+      // Update meters for both players and track who has finished
       update.players.forEach((player: PlayerState) => {
         if (player.userId === user?.id) {
           setMyMeters(player.meters);
         } else {
           setOpponentMeters(player.meters);
         }
+        
+        // Track finished players (crossed 100m line)
+        if (player.meters >= 100) {
+          finishedPlayers.current.add(player.userId);
+        }
       });
+
+      // Check if local threshold is reached (for client-side early end UI)
+      const totalPlayers = update.players.length;
+      const finishedCount = finishedPlayers.current.size;
+      
+      if (!isLocallyEnded && hasReachedThreshold(finishedCount, totalPlayers)) {
+        // Mark race as locally ended (disable taps, show early finish overlay)
+        setIsLocallyEnded(true);
+        setLocalEndResult({
+          endedAt: Date.now(),
+          finishOrder: Array.from(finishedPlayers.current).map(id => String(id)),
+          threshold: computeFinishThreshold(totalPlayers),
+          totalRacers: totalPlayers,
+          runners: [], // We don't have RunnerState in online mode, only PlayerState
+        });
+      }
     };
 
     const handleMatchEnd = (matchResult: MatchResult) => {
       if (matchResult.matchId !== matchId) return;
 
+      // Server result received - this is authoritative
+      setServerResultReceived(true);
       setRaceFinished(true);
       setResult(matchResult);
 
@@ -91,10 +122,11 @@ export default function RaceScreen({ route, navigation }: Props) {
       socket.off("race_update", handleRaceUpdate);
       socket.off("match_end", handleMatchEnd);
     };
-  }, [socket, matchId, user, navigation]);
+  }, [socket, matchId, user, navigation, isLocallyEnded]);
 
   const handleTap = (side: "left" | "right") => {
-    if (!raceStarted || raceFinished || !socket) return;
+    // Disable taps when locally ended (threshold reached) or race finished
+    if (!raceStarted || raceFinished || isLocallyEnded || !socket) return;
 
     // Alternate sides mechanic (optional, can be removed if any tap works)
     if (lastSide.current === side) {
@@ -147,11 +179,21 @@ export default function RaceScreen({ route, navigation }: Props) {
         </View>
       )}
 
-      {/* Race Finished Overlay */}
-      {raceFinished && result && (
+      {/* Local Early Finish Overlay (waiting for server confirmation) */}
+      {isLocallyEnded && !serverResultReceived && localEndResult && (
+        <View style={styles.localEndOverlay}>
+          <Text style={styles.localEndTitle}>Race ended — top {localEndResult.threshold} finished</Text>
+          <Text style={styles.localEndSubtext}>Waiting for official results...</Text>
+        </View>
+      )}
+
+      {/* Race Finished Overlay (server authoritative result) */}
+      {raceFinished && result && serverResultReceived && (
         <View style={styles.resultOverlay}>
           <Text style={styles.resultText}>{getResultText()}</Text>
-          <Text style={styles.resultSubtext}>Returning to queue...</Text>
+          <Text style={styles.resultSubtext}>
+            {isLocallyEnded && localEndResult ? "Official results updated" : "Returning to queue..."}
+          </Text>
         </View>
       )}
 
@@ -160,19 +202,33 @@ export default function RaceScreen({ route, navigation }: Props) {
         <View style={styles.buttonArea}>
           <View style={styles.buttonRow}>
             <TouchableOpacity
-              style={[styles.button, styles.leftButton]}
+              style={[
+                styles.button,
+                styles.leftButton,
+                isLocallyEnded && styles.buttonDisabled,
+              ]}
               onPress={() => handleTap("left")}
-              activeOpacity={0.7}
+              activeOpacity={isLocallyEnded ? 1 : 0.7}
+              disabled={isLocallyEnded}
             >
-              <Text style={styles.buttonText}>LEFT</Text>
+              <Text style={[styles.buttonText, isLocallyEnded && styles.buttonTextDisabled]}>
+                LEFT
+              </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.button, styles.rightButton]}
+              style={[
+                styles.button,
+                styles.rightButton,
+                isLocallyEnded && styles.buttonDisabled,
+              ]}
               onPress={() => handleTap("right")}
-              activeOpacity={0.7}
+              activeOpacity={isLocallyEnded ? 1 : 0.7}
+              disabled={isLocallyEnded}
             >
-              <Text style={styles.buttonText}>RIGHT</Text>
+              <Text style={[styles.buttonText, isLocallyEnded && styles.buttonTextDisabled]}>
+                RIGHT
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -259,6 +315,12 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: "#fff",
   },
+  buttonDisabled: {
+    opacity: 0.3,
+  },
+  buttonTextDisabled: {
+    opacity: 0.5,
+  },
   countdownOverlay: {
     position: "absolute",
     top: 0,
@@ -273,6 +335,29 @@ const styles = StyleSheet.create({
     fontSize: 120,
     fontWeight: "bold",
     color: "#fff",
+  },
+  localEndOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0, 0, 0, 0.85)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  localEndTitle: {
+    fontSize: 28,
+    fontWeight: "bold",
+    color: "#FFD700",
+    marginBottom: 16,
+    textAlign: "center",
+    paddingHorizontal: 24,
+  },
+  localEndSubtext: {
+    fontSize: 16,
+    color: "#999",
+    textAlign: "center",
   },
   resultOverlay: {
     position: "absolute",

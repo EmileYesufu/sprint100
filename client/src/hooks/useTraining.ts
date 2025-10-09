@@ -10,6 +10,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AIRunner, createAIRunners } from "@/ai/aiRunner";
+import { computeFinishThreshold, hasReachedThreshold } from "@/utils/finishThreshold";
 import type {
   TrainingConfig,
   TrainingRaceState,
@@ -17,6 +18,7 @@ import type {
   RunnerState,
   RunnerStep,
   TrainingRecord,
+  LocalEndResult,
 } from "@/types";
 
 // Same mapping as online mode
@@ -39,6 +41,9 @@ interface UseTrainingReturn {
   result: TrainingResult | null;
   isReplayMode: boolean;
   isRunning: boolean;
+  // Local early finish threshold state
+  isLocallyEnded: boolean;
+  localEndResult: LocalEndResult | null;
 }
 
 export function useTraining(): UseTrainingReturn {
@@ -50,6 +55,9 @@ export function useTraining(): UseTrainingReturn {
   });
   const [result, setResult] = useState<TrainingResult | null>(null);
   const [isReplayMode, setIsReplayMode] = useState(false);
+  // Client-local early end threshold logic — race ends when top N finish
+  const [isLocallyEnded, setIsLocallyEnded] = useState(false);
+  const [localEndResult, setLocalEndResult] = useState<LocalEndResult | null>(null);
 
   const aiRunners = useRef<AIRunner[]>([]);
   const config = useRef<TrainingConfig | null>(null);
@@ -81,6 +89,22 @@ export function useTraining(): UseTrainingReturn {
     finishPositions.current.set(runnerId, {
       position,
       time: currentTime,
+    });
+  }, []);
+
+  /**
+   * Mark race as locally ended when threshold is met
+   * Client-local early end threshold logic — for training this is final
+   * Disables input, preserves finish positions, records partial results
+   */
+  const markLocalRaceEnded = useCallback((runners: RunnerState[], endTime: number, totalRacers: number, threshold: number) => {
+    setIsLocallyEnded(true);
+    setLocalEndResult({
+      endedAt: endTime,
+      finishOrder: [...finishOrder.current], // Snapshot of finish order at threshold
+      threshold,
+      totalRacers,
+      runners: runners.map(r => ({ ...r })), // Deep copy runner states
     });
   }, []);
 
@@ -167,17 +191,20 @@ export function useTraining(): UseTrainingReturn {
       stepHistory: [...prev.stepHistory, ...newSteps],
     }));
 
-    // Check if race is finished (ALL racers must cross finish line)
+    // Check if race threshold is reached (early finish logic)
     const totalRacers = 1 + aiRunners.current.length; // player + AIs
-    const allFinished = finishOrder.current.length === totalRacers;
+    const finishedCount = finishOrder.current.length;
+    const threshold = computeFinishThreshold(totalRacers);
     
-    if (allFinished) {
+    // For training mode: local end is final — finish race when threshold is met
+    if (hasReachedThreshold(finishedCount, totalRacers) && !isLocallyEnded) {
+      markLocalRaceEnded(updatedRunners, elapsed, totalRacers, threshold);
       finishRace(updatedRunners, elapsed);
       return;
     }
 
     animationFrameId.current = requestAnimationFrame(updateLoop);
-  }, [raceState.status, isReplayMode, markRacerFinished]);
+  }, [raceState.status, isReplayMode, markRacerFinished, isLocallyEnded]);
 
   /**
    * Start training race
@@ -237,9 +264,10 @@ export function useTraining(): UseTrainingReturn {
 
   /**
    * Handle player tap
+   * Disabled when race is locally ended (threshold reached)
    */
   const tap = useCallback((side: "left" | "right") => {
-    if (raceState.status !== "racing" || playerState.current.finished || isReplayMode) {
+    if (raceState.status !== "racing" || playerState.current.finished || isReplayMode || isLocallyEnded) {
       return;
     }
 
@@ -274,7 +302,7 @@ export function useTraining(): UseTrainingReturn {
       markRacerFinished("player", elapsed);
       playerState.current.finished = true;
     }
-  }, [raceState.status, isReplayMode, markRacerFinished]);
+  }, [raceState.status, isReplayMode, isLocallyEnded, markRacerFinished]);
 
   /**
    * Pause race
@@ -310,6 +338,9 @@ export function useTraining(): UseTrainingReturn {
     setRaceState({ status: "setup", elapsedMs: 0, runners: [], stepHistory: [] });
     setResult(null);
     setIsReplayMode(false);
+    // Clear local end state
+    setIsLocallyEnded(false);
+    setLocalEndResult(null);
     aiRunners.current = [];
     playerState.current = { steps: 0, meters: 0, lastSide: null, finished: false };
     startTimeRef.current = 0;
@@ -332,6 +363,9 @@ export function useTraining(): UseTrainingReturn {
     setRaceState({ status: "setup", elapsedMs: 0, runners: [], stepHistory: [] });
     setResult(null);
     setIsReplayMode(false);
+    // Clear local end state
+    setIsLocallyEnded(false);
+    setLocalEndResult(null);
     aiRunners.current = [];
     config.current = null;
     playerState.current = { steps: 0, meters: 0, lastSide: null, finished: false };
@@ -536,6 +570,9 @@ export function useTraining(): UseTrainingReturn {
     result,
     isReplayMode,
     isRunning,
+    // Local early finish threshold state
+    isLocallyEnded,
+    localEndResult,
   };
 }
 
