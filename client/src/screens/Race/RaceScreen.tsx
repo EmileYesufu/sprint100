@@ -19,6 +19,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useSocket } from "@/hooks/useSocket";
 import { metersToPct } from "@/utils/formatting";
 import { computeFinishThreshold, hasReachedThreshold } from "@/utils/finishThreshold";
+import { computeFinalPlacings, type RacerProgress } from "@/utils/computeFinalPlacings";
 import type { RaceUpdate, MatchResult, PlayerState, LocalEndResult } from "@/types";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { RaceStackParamList } from "@/navigation/AppNavigator";
@@ -44,9 +45,11 @@ export default function RaceScreen({ route, navigation }: Props) {
   const [isLocallyEnded, setIsLocallyEnded] = useState(false);
   const [localEndResult, setLocalEndResult] = useState<LocalEndResult | null>(null);
   const [serverResultReceived, setServerResultReceived] = useState(false);
+  const [clientPlacings, setClientPlacings] = useState<string[]>([]); // Client-computed placings
   
   const lastSide = useRef<"left" | "right" | null>(null);
   const finishedPlayers = useRef<Set<number>>(new Set()); // Track who has finished
+  const playerStates = useRef<Map<number, PlayerState>>(new Map()); // Track all player states
 
   // Countdown timer
   useEffect(() => {
@@ -70,8 +73,11 @@ export default function RaceScreen({ route, navigation }: Props) {
     const handleRaceUpdate = (update: RaceUpdate) => {
       if (update.matchId !== matchId) return;
 
-      // Update meters for both players and track who has finished
+      // Update meters for players and store all player states
       update.players.forEach((player: PlayerState) => {
+        // Store player state for final placings computation
+        playerStates.current.set(player.userId, player);
+        
         if (player.userId === user?.id) {
           setMyMeters(player.meters);
         } else {
@@ -89,12 +95,29 @@ export default function RaceScreen({ route, navigation }: Props) {
       const finishedCount = finishedPlayers.current.size;
       
       if (!isLocallyEnded && hasReachedThreshold(finishedCount, totalPlayers)) {
+        // Compute final placings for ALL players (finished + unfinished by progress)
+        const racerProgress: RacerProgress[] = Array.from(playerStates.current.values()).map(p => ({
+          id: String(p.userId),
+          distance: p.meters,
+          hasFinished: p.meters >= 100,
+          finishTime: p.meters >= 100 ? update.timestamp : undefined,
+        }));
+
+        const threshold = computeFinishThreshold(totalPlayers);
+        const placings = computeFinalPlacings(racerProgress, totalPlayers, threshold);
+        setClientPlacings(placings);
+
+        if (__DEV__) {
+          console.log('[RaceScreen] Local end triggered - final placings:', placings);
+          console.log('[RaceScreen] Player states:', Array.from(playerStates.current.entries()));
+        }
+
         // Mark race as locally ended (disable taps, show early finish overlay)
         setIsLocallyEnded(true);
         setLocalEndResult({
           endedAt: Date.now(),
-          finishOrder: Array.from(finishedPlayers.current).map(id => String(id)),
-          threshold: computeFinishThreshold(totalPlayers),
+          finishOrder: placings, // Use computed placings instead of just finished IDs
+          threshold,
           totalRacers: totalPlayers,
           runners: [], // We don't have RunnerState in online mode, only PlayerState
         });

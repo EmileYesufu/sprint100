@@ -12,7 +12,7 @@
  * TEST: Verify top-3 finishers show medals (🥇🥈🥉) and others show "finished" text.
  */
 
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useMemo } from "react";
 import {
   View,
   Text,
@@ -58,7 +58,7 @@ function getAccessibilityLabel(position: number | undefined): string {
 
 export default function TrainingRaceScreen({ route, navigation }: Props) {
   const { config } = route.params;
-  const { raceState, start, tap, result, abort, isLocallyEnded, localEndResult } = useTraining();
+  const { raceState, start, tap, result, abort, isLocallyEnded, localEndResult, finalPlacings } = useTraining();
   const [countdown, setCountdown] = useState<CountdownState>("3");
   const [raceStarted, setRaceStarted] = useState(false);
   const countdownTimeouts = useRef<NodeJS.Timeout[]>([]);
@@ -146,18 +146,28 @@ export default function TrainingRaceScreen({ route, navigation }: Props) {
     navigation.goBack();
   };
 
-  // Sort runners: finished by finishPosition (immutable), then unfinished by meters (descending)
-  // This ensures positions are stable once assigned at moment of crossing
-  const sortedRunners = [...raceState.runners].sort((a, b) => {
-    if (a.finishPosition && b.finishPosition) {
-      // Both finished: sort by finish position (lower = better)
-      return a.finishPosition - b.finishPosition;
+  // Sort runners: use finalPlacings if available (race ended), otherwise sort by progress
+  const sortedRunners = useMemo(() => {
+    if (finalPlacings.length > 0) {
+      // Race has ended - use finalPlacings order (includes unfinished racers ranked by progress)
+      const runnerMap = new Map(raceState.runners.map(r => [r.id, r]));
+      return finalPlacings
+        .map(id => runnerMap.get(id))
+        .filter((r): r is RunnerState => r !== undefined);
     }
-    if (a.finishPosition) return -1; // Finished racers come first
-    if (b.finishPosition) return 1;
-    // Both unfinished: sort by current meters (descending)
-    return b.meters - a.meters;
-  });
+    
+    // Race still active - sort by current state
+    return [...raceState.runners].sort((a, b) => {
+      if (a.finishPosition && b.finishPosition) {
+        // Both finished: sort by finish position (lower = better)
+        return a.finishPosition - b.finishPosition;
+      }
+      if (a.finishPosition) return -1; // Finished racers come first
+      if (b.finishPosition) return 1;
+      // Both unfinished: sort by current meters (descending)
+      return b.meters - a.meters;
+    });
+  }, [raceState.runners, finalPlacings]);
 
   // Show quit button during countdown or active race (not on results screen)
   const showQuitButton = raceState.status !== "finished" || !result;

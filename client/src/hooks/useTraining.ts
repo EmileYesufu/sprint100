@@ -11,6 +11,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AIRunner, createAIRunners } from "@/ai/aiRunner";
 import { computeFinishThreshold, hasReachedThreshold } from "@/utils/finishThreshold";
+import { computeFinalPlacings, assignPositions, type RacerProgress } from "@/utils/computeFinalPlacings";
 import type {
   TrainingConfig,
   TrainingRaceState,
@@ -44,6 +45,8 @@ interface UseTrainingReturn {
   // Local early finish threshold state
   isLocallyEnded: boolean;
   localEndResult: LocalEndResult | null;
+  // Final placings (immutable ranking once race ends)
+  finalPlacings: string[];
 }
 
 export function useTraining(): UseTrainingReturn {
@@ -58,6 +61,8 @@ export function useTraining(): UseTrainingReturn {
   // Client-local early end threshold logic — race ends when top N finish
   const [isLocallyEnded, setIsLocallyEnded] = useState(false);
   const [localEndResult, setLocalEndResult] = useState<LocalEndResult | null>(null);
+  // Final placings: immutable ranking once race ends (finished + unfinished racers)
+  const [finalPlacings, setFinalPlacings] = useState<string[]>([]);
 
   const aiRunners = useRef<AIRunner[]>([]);
   const config = useRef<TrainingConfig | null>(null);
@@ -96,16 +101,43 @@ export function useTraining(): UseTrainingReturn {
    * Mark race as locally ended when threshold is met
    * Client-local early end threshold logic — for training this is final
    * Disables input, preserves finish positions, records partial results
+   * Computes final placings for ALL racers (finished + unfinished by progress)
    */
   const markLocalRaceEnded = useCallback((runners: RunnerState[], endTime: number, totalRacers: number, threshold: number) => {
+    // Convert runners to RacerProgress format
+    const racerProgress: RacerProgress[] = runners.map(r => ({
+      id: r.id,
+      distance: r.meters,
+      hasFinished: r.finished,
+      finishTime: r.finishTime,
+    }));
+
+    // Compute final placings: finished racers by time, unfinished by distance
+    const placings = computeFinalPlacings(racerProgress, totalRacers, threshold);
+    const positionMap = assignPositions(placings);
+
+    // Store final placings (immutable from this point)
+    setFinalPlacings(placings);
+
+    // Update runners with final positions
+    const runnersWithFinalPositions = runners.map(r => ({
+      ...r,
+      finishPosition: positionMap.get(r.id) || 999,
+    }));
+
     setIsLocallyEnded(true);
     setLocalEndResult({
       endedAt: endTime,
-      finishOrder: [...finishOrder.current], // Snapshot of finish order at threshold
+      finishOrder: placings, // Use computed final order instead of just finished racers
       threshold,
       totalRacers,
-      runners: runners.map(r => ({ ...r })), // Deep copy runner states
+      runners: runnersWithFinalPositions,
     });
+
+    if (__DEV__) {
+      console.log('[markLocalRaceEnded] Final placings computed:', placings);
+      console.log('[markLocalRaceEnded] Position map:', Array.from(positionMap.entries()));
+    }
   }, []);
 
   /**
@@ -341,6 +373,7 @@ export function useTraining(): UseTrainingReturn {
     // Clear local end state
     setIsLocallyEnded(false);
     setLocalEndResult(null);
+    setFinalPlacings([]); // Clear final placings
     aiRunners.current = [];
     playerState.current = { steps: 0, meters: 0, lastSide: null, finished: false };
     startTimeRef.current = 0;
@@ -366,6 +399,7 @@ export function useTraining(): UseTrainingReturn {
     // Clear local end state
     setIsLocallyEnded(false);
     setLocalEndResult(null);
+    setFinalPlacings([]); // Clear final placings
     aiRunners.current = [];
     config.current = null;
     playerState.current = { steps: 0, meters: 0, lastSide: null, finished: false };
@@ -398,16 +432,53 @@ export function useTraining(): UseTrainingReturn {
 
   /**
    * Finish race and compute results
-   * Uses immutable finishOrder to preserve positions assigned at moment of crossing
+   * Uses finalPlacings (if set) or computes them to ensure all racers get correct positions
    */
   const finishRace = useCallback(async (runners: RunnerState[], finalTime: number) => {
     if (animationFrameId.current) {
       cancelAnimationFrame(animationFrameId.current);
     }
 
-    // Sort by immutable finish position (assigned at moment of crossing)
-    // This ensures positions never change after being assigned
-    const sorted = [...runners].sort((a, b) => {
+    // Use final placings if already computed (early end), otherwise compute now
+    let placings = finalPlacings;
+    let positionMap: Map<string, number>;
+
+    if (placings.length === 0) {
+      // Race ended normally (all finished) - compute final placings
+      const totalRacers = runners.length;
+      const threshold = totalRacers; // All finished
+      
+      const racerProgress: RacerProgress[] = runners.map(r => ({
+        id: r.id,
+        distance: r.meters,
+        hasFinished: r.finished,
+        finishTime: r.finishTime,
+      }));
+
+      placings = computeFinalPlacings(racerProgress, totalRacers, threshold);
+      positionMap = assignPositions(placings);
+      setFinalPlacings(placings);
+
+      if (__DEV__) {
+        console.log('[finishRace] Final placings computed (full finish):', placings);
+      }
+    } else {
+      // Use pre-computed placings from early end
+      positionMap = assignPositions(placings);
+      
+      if (__DEV__) {
+        console.log('[finishRace] Using pre-computed placings (early end):', placings);
+      }
+    }
+
+    // Update runners with correct final positions
+    const runnersWithPositions = runners.map(r => ({
+      ...r,
+      finishPosition: positionMap.get(r.id) || 999,
+    }));
+
+    // Sort by final position for display
+    const sorted = [...runnersWithPositions].sort((a, b) => {
       const posA = a.finishPosition || 999;
       const posB = b.finishPosition || 999;
       return posA - posB;
@@ -469,7 +540,7 @@ export function useTraining(): UseTrainingReturn {
     } catch (error) {
       console.error("Error saving training records:", error);
     }
-  };
+  }, [finalPlacings]);
 
   /**
    * Replay race from stored step history
@@ -573,6 +644,8 @@ export function useTraining(): UseTrainingReturn {
     // Local early finish threshold state
     isLocallyEnded,
     localEndResult,
+    // Final placings (immutable ranking once race ends)
+    finalPlacings,
   };
 }
 
