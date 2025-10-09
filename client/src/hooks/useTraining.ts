@@ -540,7 +540,7 @@ export function useTraining(): UseTrainingReturn {
     } catch (error) {
       console.error("Error saving training records:", error);
     }
-  }, [finalPlacings]);
+  };
 
   /**
    * Replay race from stored step history
