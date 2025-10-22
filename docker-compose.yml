@@ -1,0 +1,84 @@
+# Sprint100 Local Development with PostgreSQL
+# Run: docker-compose up -d
+# Stop: docker-compose down
+
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: sprint100-postgres
+    environment:
+      POSTGRES_DB: sprint100
+      POSTGRES_USER: sprint100_user
+      POSTGRES_PASSWORD: sprint100_password
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./server/deploy/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sprint100_user -d sprint100"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - sprint100-network
+
+  # Sprint100 Server
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile.dev
+    container_name: sprint100-server
+    environment:
+      NODE_ENV: development
+      HOST: 0.0.0.0
+      PORT: 4000
+      DATABASE_URL: postgresql://sprint100_user:sprint100_password@postgres:5432/sprint100
+      JWT_SECRET: dev_jwt_secret_change_in_production
+      ALLOWED_ORIGINS: http://localhost:19006,exp://localhost:19000
+      RATE_LIMIT_WINDOW_MS: 900000
+      RATE_LIMIT_MAX: 200
+      ENABLE_REQUEST_LOGGING: true
+    ports:
+      - "4000:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./server:/app
+      - /app/node_modules
+    networks:
+      - sprint100-network
+    command: >
+      sh -c "
+        echo 'Waiting for database...' &&
+        npx prisma migrate deploy &&
+        npx prisma generate &&
+        npm run dev
+      "
+
+  # Optional: Redis for session storage
+  redis:
+    image: redis:7-alpine
+    container_name: sprint100-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - sprint100-network
+    command: redis-server --appendonly yes
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  sprint100-network:
+    driver: bridge

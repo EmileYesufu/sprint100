@@ -1,0 +1,83 @@
+# Sprint100 Production Docker Compose
+# For production deployment with PostgreSQL
+
+version: '3.8'
+
+services:
+  # PostgreSQL Database (Production)
+  postgres:
+    image: postgres:15-alpine
+    container_name: sprint100-postgres-prod
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-sprint100}
+      POSTGRES_USER: ${POSTGRES_USER:-sprint100_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_prod_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    networks:
+      - sprint100-prod-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-sprint100_user} -d ${POSTGRES_DB:-sprint100}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Sprint100 Server (Production)
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    container_name: sprint100-server-prod
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 4000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-sprint100_user}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-sprint100}
+      JWT_SECRET: ${JWT_SECRET}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
+      RATE_LIMIT_WINDOW_MS: 900000
+      RATE_LIMIT_MAX: 100
+      ENABLE_REQUEST_LOGGING: false
+    ports:
+      - "4000:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - sprint100-prod-network
+    command: >
+      sh -c "
+        echo 'Running database migrations...' &&
+        npx prisma migrate deploy &&
+        npx prisma generate &&
+        echo 'Starting production server...' &&
+        npm start
+      "
+
+  # Nginx Reverse Proxy (Optional)
+  nginx:
+    image: nginx:alpine
+    container_name: sprint100-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - server
+    restart: unless-stopped
+    networks:
+      - sprint100-prod-network
+
+volumes:
+  postgres_prod_data:
+    driver: local
+
+networks:
+  sprint100-prod-network:
+    driver: bridge

@@ -3,8 +3,8 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = "file:./dev.db"
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model User {
@@ -15,6 +15,10 @@ model User {
   elo       Int      @default(1200)
   createdAt DateTime @default(now())
   players   MatchPlayer[]
+  
+  // Add computed fields for leaderboard
+  matchesPlayed Int @default(0)
+  wins          Int @default(0)
 }
 
 model Match {
