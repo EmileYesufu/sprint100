@@ -8,7 +8,17 @@
     "dev:client": "cd client && npx expo start",
     "testers:start": "concurrently \"cd server && npm run dev\" \"cd client && npx expo start --tunnel\"",
     "testers:install": "npm install && cd server && npm install && cd ../client && npm install",
-    "testers:setup": "npm run testers:install && echo 'Setup complete! Run npm run testers:start to begin testing.'"
+    "testers:setup": "npm run testers:install && echo 'Setup complete! Run npm run testers:start to begin testing.'",
+    "deploy:render": "cd server && npm run build && echo 'Deploy to Render via GitHub integration'",
+    "deploy:railway": "railway up",
+    "deploy:heroku": "git push heroku main && heroku run npx prisma migrate deploy",
+    "deploy:docker": "docker-compose -f docker-compose.prod.yml up -d",
+    "deploy:production": "npm run deploy:render",
+    "build:server": "cd server && npm run build",
+    "start:server": "cd server && npm start",
+    "db:migrate": "cd server && npx prisma migrate deploy",
+    "db:generate": "cd server && npx prisma generate",
+    "db:studio": "cd server && npx prisma studio"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"
