@@ -130,6 +130,68 @@ app.get("/api/users/search", async (req, res) => {
   }
 });
 
+// Get leaderboard
+app.get("/api/leaderboard", async (req, res) => {
+  try {
+    const users = await prisma.user.findMany({
+      select: {
+        id: true,
+        username: true,
+        elo: true,
+        matchesPlayed: true,
+        wins: true,
+      },
+      orderBy: {
+        elo: 'desc',
+      },
+      take: 50, // Top 50 players
+    });
+    res.json(users);
+  } catch (error) {
+    res.status(500).json({ error: "failed to fetch leaderboard" });
+  }
+});
+
+// Get user matches
+app.get("/api/users/:userId/matches", async (req, res) => {
+  const userId = parseInt(req.params.userId);
+  if (isNaN(userId)) {
+    return res.status(400).json({ error: "invalid user ID" });
+  }
+
+  try {
+    const matches = await prisma.match.findMany({
+      where: {
+        players: {
+          some: {
+            userId: userId,
+          },
+        },
+      },
+      include: {
+        players: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                username: true,
+                elo: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+      take: 20, // Last 20 matches
+    });
+    res.json(matches);
+  } catch (error) {
+    res.status(500).json({ error: "failed to fetch user matches" });
+  }
+});
+
 const httpServer = http.createServer(app);
 const io = new SocketIOServer(httpServer, {
   cors: { 
