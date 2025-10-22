@@ -1,0 +1,368 @@
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = __importDefault(require("express"));
+const http_1 = __importDefault(require("http"));
+const socket_io_1 = require("socket.io");
+const cors_1 = __importDefault(require("cors"));
+const helmet_1 = __importDefault(require("helmet"));
+const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
+const morgan_1 = __importDefault(require("morgan"));
+const bcryptjs_1 = __importDefault(require("bcryptjs"));
+const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
+const client_1 = require("@prisma/client");
+const elo_1 = require("./utils/elo");
+const config_1 = require("./config");
+const prisma = new client_1.PrismaClient();
+const app = (0, express_1.default)();
+// Security headers (helmet)
+app.use((0, helmet_1.default)({
+    contentSecurityPolicy: config_1.NODE_ENV === "production",
+}));
+// Request logging (morgan)
+if (config_1.ENABLE_REQUEST_LOGGING) {
+    app.use((0, morgan_1.default)(config_1.NODE_ENV === "production" ? "combined" : "dev"));
+}
+// Rate limiting
+const limiter = (0, express_rate_limit_1.default)({
+    windowMs: config_1.RATE_LIMIT_WINDOW_MS,
+    max: config_1.RATE_LIMIT_MAX,
+    message: { error: "Too many requests, please try again later" },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+app.use("/api/", limiter);
+// CORS configuration - use configured origins
+app.use((0, cors_1.default)({
+    origin: config_1.ALLOWED_ORIGINS,
+    credentials: true,
+}));
+// Body parsing middleware
+app.use(express_1.default.json({ limit: '10mb' }));
+app.use(express_1.default.urlencoded({ extended: true, limit: '10mb' }));
+// Health check endpoints
+app.get("/health", (req, res) => {
+    res.json({ status: "ok", timestamp: new Date().toISOString() });
+});
+app.get("/ready", async (req, res) => {
+    try {
+        await prisma.$queryRaw `SELECT 1`;
+        res.json({ status: "ready", database: "connected", timestamp: new Date().toISOString() });
+    }
+    catch (error) {
+        res.status(503).json({ status: "not ready", database: "disconnected", error: "Database connection failed" });
+    }
+});
+// Username validation: alphanumeric + underscore, 3-20 chars
+function validateUsername(username) {
+    return /^[a-zA-Z0-9_]{3,20}$/.test(username);
+}
+app.post("/api/register", async (req, res) => {
+    const { email, password, username } = req.body;
+    if (!email || !password || !username)
+        return res.status(400).json({ error: "email, password, and username required" });
+    if (!validateUsername(username)) {
+        return res.status(400).json({ error: "Invalid username. Use 3-20 alphanumeric characters or underscores." });
+    }
+    const emailExists = await prisma.user.findUnique({ where: { email } });
+    if (emailExists)
+        return res.status(400).json({ error: "email already taken" });
+    const usernameExists = await prisma.user.findUnique({ where: { username } });
+    if (usernameExists)
+        return res.status(400).json({ error: "username already taken" });
+    const hash = await bcryptjs_1.default.hash(password, 10);
+    const user = await prisma.user.create({ data: { email, username, password: hash } });
+    const token = jsonwebtoken_1.default.sign({ userId: user.id, email: user.email, username: user.username }, config_1.JWT_SECRET);
+    res.json({ token, user: { id: user.id, email: user.email, username: user.username, elo: user.elo } });
+});
+app.post("/api/login", async (req, res) => {
+    const { email, password } = req.body;
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user)
+        return res.status(401).json({ error: "invalid credentials" });
+    const ok = await bcryptjs_1.default.compare(password, user.password);
+    if (!ok)
+        return res.status(401).json({ error: "invalid credentials" });
+    const token = jsonwebtoken_1.default.sign({ userId: user.id, email: user.email, username: user.username }, config_1.JWT_SECRET);
+    res.json({ token, user: { id: user.id, email: user.email, username: user.username, elo: user.elo } });
+});
+// Search users by username (for challenge feature)
+app.get("/api/users/search", async (req, res) => {
+    const query = req.query.q;
+    if (!query || query.length < 2) {
+        return res.status(400).json({ error: "query too short (min 2 chars)" });
+    }
+    try {
+        const users = await prisma.user.findMany({
+            where: {
+                username: {
+                    contains: query,
+                },
+            },
+            select: {
+                id: true,
+                username: true,
+                email: true,
+                elo: true,
+            },
+            take: 10, // Limit results
+        });
+        res.json({ users });
+    }
+    catch (error) {
+        res.status(500).json({ error: "search failed" });
+    }
+});
+const httpServer = http_1.default.createServer(app);
+const io = new socket_io_1.Server(httpServer, {
+    cors: {
+        origin: config_1.ALLOWED_ORIGINS,
+        credentials: true,
+    },
+});
+// Simple in-memory queue, matches, and challenges store (dev only)
+const queue = [];
+const matches = new Map();
+const challenges = new Map(); // key: challengerId-targetId
+const userSockets = new Map(); // userId -> socketId mapping
+let matchIdCounter = 1;
+io.use(async (socket, next) => {
+    // token via socket.handshake.auth.token
+    const token = socket.handshake.auth?.token;
+    if (!token)
+        return next(new Error("auth required"));
+    try {
+        const payload = jsonwebtoken_1.default.verify(token, config_1.JWT_SECRET);
+        const user = await prisma.user.findUnique({ where: { id: payload.userId } });
+        if (!user)
+            return next(new Error("user not found"));
+        socket.user = { id: user.id, email: user.email, username: user.username, elo: user.elo };
+        next();
+    }
+    catch (err) {
+        next(new Error("invalid token"));
+    }
+});
+io.on("connection", (socket) => {
+    const user = socket.user;
+    console.log("connected", user.username || user.email);
+    // Register user socket for challenge routing
+    userSockets.set(user.id, socket.id);
+    socket.on("join_queue", () => {
+        if (queue.find((q) => q.socketId === socket.id))
+            return;
+        queue.push({ socketId: socket.id, userId: user.id, email: user.email, username: user.username, elo: user.elo });
+        socket.emit("queue_joined");
+        tryPair();
+    });
+    socket.on("leave_queue", () => {
+        const idx = queue.findIndex((q) => q.socketId === socket.id);
+        if (idx >= 0)
+            queue.splice(idx, 1);
+        socket.emit("queue_left");
+    });
+    // Challenge system - send challenge to another user by username
+    socket.on("send_challenge", async (payload) => {
+        try {
+            const targetUser = await prisma.user.findUnique({ where: { username: payload.targetUsername } });
+            if (!targetUser) {
+                socket.emit("challenge_error", { error: "User not found" });
+                return;
+            }
+            if (targetUser.id === user.id) {
+                socket.emit("challenge_error", { error: "Cannot challenge yourself" });
+                return;
+            }
+            const targetSocketId = userSockets.get(targetUser.id);
+            if (!targetSocketId) {
+                socket.emit("challenge_error", { error: "User is offline" });
+                return;
+            }
+            const challengeKey = `${user.id}-${targetUser.id}`;
+            if (challenges.has(challengeKey)) {
+                socket.emit("challenge_error", { error: "Challenge already sent" });
+                return;
+            }
+            // Store challenge
+            const challenge = {
+                challengerId: user.id,
+                challengerUsername: user.username,
+                challengerElo: user.elo,
+                targetId: targetUser.id,
+                targetUsername: targetUser.username,
+                createdAt: Date.now(),
+            };
+            challenges.set(challengeKey, challenge);
+            // Notify target
+            io.to(targetSocketId).emit("challenge_received", {
+                from: user.username,
+                fromId: user.id,
+                fromElo: user.elo,
+            });
+            socket.emit("challenge_sent", { to: targetUser.username });
+        }
+        catch (error) {
+            socket.emit("challenge_error", { error: "Failed to send challenge" });
+        }
+    });
+    // Accept challenge
+    socket.on("accept_challenge", async (payload) => {
+        const challengeKey = `${payload.fromId}-${user.id}`;
+        const challenge = challenges.get(challengeKey);
+        if (!challenge) {
+            socket.emit("challenge_error", { error: "Challenge not found or expired" });
+            return;
+        }
+        const challengerSocketId = userSockets.get(payload.fromId);
+        if (!challengerSocketId) {
+            socket.emit("challenge_error", { error: "Challenger is offline" });
+            challenges.delete(challengeKey);
+            return;
+        }
+        // Create match (same as queue pairing)
+        const challenger = await prisma.user.findUnique({ where: { id: payload.fromId } });
+        if (!challenger)
+            return;
+        const id = matchIdCounter++;
+        const match = {
+            id,
+            players: [
+                { socketId: challengerSocketId, userId: challenger.id, email: challenger.email, username: challenger.username, elo: challenger.elo, steps: 0, meters: 0, lastSide: null, timeMs: null },
+                { socketId: socket.id, userId: user.id, email: user.email, username: user.username, elo: user.elo, steps: 0, meters: 0, lastSide: null, timeMs: null },
+            ],
+            startedAt: Date.now(),
+        };
+        matches.set(id, match);
+        // Remove challenge
+        challenges.delete(challengeKey);
+        // Notify both players match started
+        match.players.forEach((p) => {
+            io.to(p.socketId).emit("match_start", {
+                matchId: id,
+                opponent: match.players.find((x) => x.socketId !== p.socketId).username || match.players.find((x) => x.socketId !== p.socketId).email
+            });
+        });
+    });
+    // Decline challenge
+    socket.on("decline_challenge", (payload) => {
+        const challengeKey = `${payload.fromId}-${user.id}`;
+        const challenge = challenges.get(challengeKey);
+        if (challenge) {
+            challenges.delete(challengeKey);
+            const challengerSocketId = userSockets.get(payload.fromId);
+            if (challengerSocketId) {
+                io.to(challengerSocketId).emit("challenge_declined", { by: user.username });
+            }
+        }
+    });
+    socket.on("tap", (payload) => {
+        const m = matches.get(payload.matchId);
+        if (!m)
+            return;
+        const player = m.players.find((p) => p.socketId === socket.id);
+        if (!player)
+            return;
+        // simple validation: alternate sides
+        if (player.lastSide === payload.side) {
+            // ignore repeated same-side taps (simple rule)
+            return;
+        }
+        player.lastSide = payload.side;
+        player.steps++;
+        // compute progress -- assume step = 0.6m
+        player.meters = player.steps * 0.6;
+        // notify both
+        const state = {
+            players: m.players.map((p) => ({ userId: p.userId, meters: p.meters, steps: p.steps })),
+        };
+        m.players.forEach((p) => io.to(p.socketId).emit("race_update", state));
+        // check finish
+        const finished = m.players.filter((p) => p.meters >= 100);
+        if (finished.length > 0) {
+            endMatch(m, finished);
+        }
+    });
+    socket.on("disconnect", () => {
+        // remove from queue
+        const idx = queue.findIndex((q) => q.socketId === socket.id);
+        if (idx >= 0)
+            queue.splice(idx, 1);
+        // Remove from userSockets mapping
+        userSockets.delete(user.id);
+        // Clean up any challenges from/to this user
+        const challengesToDelete = [];
+        challenges.forEach((challenge, key) => {
+            if (challenge.challengerId === user.id || challenge.targetId === user.id) {
+                challengesToDelete.push(key);
+            }
+        });
+        challengesToDelete.forEach(key => challenges.delete(key));
+        // TODO: handle disconnect during match
+        console.log("disconnected", user.username || user.email);
+    });
+});
+function tryPair() {
+    if (queue.length >= 2) {
+        const [a, b] = queue.splice(0, 2);
+        const id = matchIdCounter++;
+        const match = {
+            id,
+            players: [
+                { socketId: a.socketId, userId: a.userId, email: a.email, elo: a.elo, steps: 0, meters: 0, lastSide: null, timeMs: null },
+                { socketId: b.socketId, userId: b.userId, email: b.email, elo: b.elo, steps: 0, meters: 0, lastSide: null, timeMs: null },
+            ],
+            startedAt: Date.now(),
+        };
+        matches.set(id, match);
+        // notify both players match started
+        match.players.forEach((p) => {
+            const opp = match.players.find((x) => x.socketId !== p.socketId);
+            io.to(p.socketId).emit("match_start", { matchId: id, opponent: opp.username || opp.email });
+        });
+    }
+}
+async function endMatch(match, finishedPlayers) {
+    // compute finishing order and times
+    // For simplicity: whoever reached >=100 first is winner (we used meters only)
+    const ordered = match.players.slice().sort((a, b) => b.meters - a.meters);
+    // store match
+    const dbMatch = await prisma.match.create({ data: { duration: Date.now() - match.startedAt } });
+    // compute Elo for two players only (this skeleton assumes 2-player races)
+    if (match.players.length === 2) {
+        const pA = match.players[0];
+        const pB = match.players[1];
+        // determine outcome: 1 => pA wins else 0
+        const outcomeA = (pA.meters >= 100 && pA.meters >= pB.meters) ? 1 : 0;
+        const deltaA = (0, elo_1.calculateEloChange)(pA.elo, pB.elo, outcomeA);
+        const deltaB = -deltaA;
+        // update DB and create MatchPlayer rows
+        const mp1 = await prisma.matchPlayer.create({
+            data: { matchId: dbMatch.id, userId: pA.userId, finishPosition: outcomeA === 1 ? 1 : 2, timeMs: null, deltaElo: deltaA },
+        });
+        const mp2 = await prisma.matchPlayer.create({
+            data: { matchId: dbMatch.id, userId: pB.userId, finishPosition: outcomeA === 1 ? 2 : 1, timeMs: null, deltaElo: deltaB },
+        });
+        await prisma.user.update({ where: { id: pA.userId }, data: { elo: { increment: deltaA } } });
+        await prisma.user.update({ where: { id: pB.userId }, data: { elo: { increment: deltaB } } });
+        // notify players
+        match.players.forEach((p) => {
+            io.to(p.socketId).emit("match_end", { matchId: match.id, result: ordered.map((q) => ({ userId: q.userId, meters: q.meters })), eloDeltas: [{ userId: pA.userId, delta: deltaA }, { userId: pB.userId, delta: deltaB }] });
+        });
+    }
+    matches.delete(match.id);
+}
+httpServer.listen(config_1.PORT, config_1.HOST, () => {
+    console.log(`\n🚀 Sprint100 Server Started`);
+    console.log(`   Environment: ${config_1.NODE_ENV}`);
+    console.log(`   Listening on: http://${config_1.HOST}:${config_1.PORT}`);
+    console.log(`   Local access: http://localhost:${config_1.PORT}`);
+    console.log(`   Health check: http://localhost:${config_1.PORT}/health`);
+    if (config_1.HOST === "0.0.0.0") {
+        console.log(`   Network access: http://192.168.1.250:${config_1.PORT}`);
+        console.log(`\n💡 To expose publicly, run: npm run start:ngrok`);
+    }
+    console.log("");
+});
+//# sourceMappingURL=server.js.map

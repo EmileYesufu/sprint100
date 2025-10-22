@@ -267,9 +267,10 @@ io.on("connection", (socket) => {
     
     // Notify both players match started
     match.players.forEach((p: any) => {
+      const opponent = match.players.find((x: any) => x.socketId !== p.socketId);
       io.to(p.socketId).emit("match_start", { 
         matchId: id, 
-        opponent: match.players.find((x: any) => x.socketId !== p.socketId).username || match.players.find((x: any) => x.socketId !== p.socketId).email 
+        opponent: opponent?.username || opponent?.email || "Unknown"
       });
     });
   });
@@ -353,7 +354,7 @@ function tryPair() {
     // notify both players match started
     match.players.forEach((p: any) => {
       const opp = match.players.find((x: any) => x.socketId !== p.socketId);
-      io.to(p.socketId).emit("match_start", { matchId: id, opponent: opp.username || opp.email });
+      io.to(p.socketId).emit("match_start", { matchId: id, opponent: opp?.email || "Unknown" });
     });
   }
 }
