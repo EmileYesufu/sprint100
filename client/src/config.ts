@@ -15,7 +15,7 @@ import Constants from "expo-constants";
 function getMachineIP(): string {
   // This will be replaced with actual IP detection in production
   // For now, use a placeholder that developers should replace
-  return "http://192.168.1.250:4000"; // ← REPLACE WITH YOUR MACHINE'S IP (run: ipconfig getifaddr en0)
+  return "http://192.168.1.218:4000"; // ← REPLACE WITH YOUR MACHINE'S IP (run: ipconfig getifaddr en0)
 }
 
 export const DEFAULT_SERVER_URL = getMachineIP();
