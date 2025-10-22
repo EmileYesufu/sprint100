@@ -1,0 +1,224 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test-server:
+    name: Test Server
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: sprint100_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: server/package-lock.json
+
+      - name: Install server dependencies
+        working-directory: ./server
+        run: npm ci
+
+      - name: Setup test database
+        working-directory: ./server
+        run: |
+          cp .env.test .env
+          npx prisma generate
+          npx prisma db push
+
+      - name: Run server tests
+        working-directory: ./server
+        run: npm test
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/sprint100_test
+          NODE_ENV: test
+          JWT_SECRET: test_jwt_secret
+          ALLOWED_ORIGINS: http://localhost:3000
+
+      - name: Run server tests with coverage
+        working-directory: ./server
+        run: npm run test:coverage
+
+  test-client:
+    name: Test Client
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: client/package-lock.json
+
+      - name: Install client dependencies
+        working-directory: ./client
+        run: npm ci
+
+      - name: Run client tests
+        working-directory: ./client
+        run: npm test
+        env:
+          EXPO_PUBLIC_API_URL: http://localhost:4000
+          APP_ENV: test
+
+      - name: Run client tests with coverage
+        working-directory: ./client
+        run: npm run test:coverage
+
+  test-integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: sprint100_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: |
+          cd server && npm ci
+          cd ../client && npm ci
+
+      - name: Setup test database
+        working-directory: ./server
+        run: |
+          cp .env.test .env
+          npx prisma generate
+          npx prisma db push
+
+      - name: Start server
+        working-directory: ./server
+        run: npm run start:test &
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/sprint100_test
+          NODE_ENV: test
+          JWT_SECRET: test_jwt_secret
+          ALLOWED_ORIGINS: http://localhost:3000
+
+      - name: Wait for server to start
+        run: sleep 10
+
+      - name: Test server health
+        run: curl -f http://localhost:4000/health || exit 1
+
+      - name: Run integration tests
+        working-directory: ./server
+        run: npm test
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/sprint100_test
+          NODE_ENV: test
+          JWT_SECRET: test_jwt_secret
+          ALLOWED_ORIGINS: http://localhost:3000
+
+  lint-and-format:
+    name: Lint and Format
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: |
+          cd server && npm ci
+          cd ../client && npm ci
+
+      - name: Check TypeScript compilation
+        working-directory: ./server
+        run: npx tsc --noEmit
+
+      - name: Check TypeScript compilation
+        working-directory: ./client
+        run: npx tsc --noEmit
+
+      - name: Check for console.log statements
+        run: |
+          if grep -r "console\.log" server/src client/src --exclude-dir=node_modules; then
+            echo "Found console.log statements. Please remove them before committing."
+            exit 1
+          fi
+
+  build-check:
+    name: Build Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: |
+          cd server && npm ci
+          cd ../client && npm ci
+
+      - name: Build server
+        working-directory: ./server
+        run: npm run build
+
+      - name: Check server build
+        working-directory: ./server
+        run: |
+          if [ ! -d "dist" ]; then
+            echo "Server build failed - dist directory not found"
+            exit 1
+          fi
+
+      - name: Check client TypeScript
+        working-directory: ./client
+        run: npx tsc --noEmit
