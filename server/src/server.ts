@@ -53,6 +53,24 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// Authentication middleware
+const authenticateToken = (req: any, res: any, next: any) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (!token) {
+    return res.status(401).json({ error: 'Access token required' });
+  }
+
+  try {
+    const payload: any = jwt.verify(token, JWT_SECRET);
+    req.user = payload;
+    next();
+  } catch (error) {
+    return res.status(403).json({ error: 'Invalid or expired token' });
+  }
+};
+
 // Health check endpoints
 app.get("/health", (req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
@@ -72,35 +90,6 @@ function validateUsername(username: string): boolean {
   return /^[a-zA-Z0-9_]{3,20}$/.test(username);
 }
 
-app.post("/api/register", async (req, res) => {
-  const { email, password, username } = req.body;
-  if (!email || !password || !username) return res.status(400).json({ error: "email, password, and username required" });
-  
-  if (!validateUsername(username)) {
-    return res.status(400).json({ error: "Invalid username. Use 3-20 alphanumeric characters or underscores." });
-  }
-  
-  const emailExists = await prisma.user.findUnique({ where: { email } });
-  if (emailExists) return res.status(400).json({ error: "email already taken" });
-  
-  const usernameExists = await prisma.user.findUnique({ where: { username } });
-  if (usernameExists) return res.status(400).json({ error: "username already taken" });
-  
-  const hash = await bcrypt.hash(password, 10);
-  const user = await prisma.user.create({ data: { email, username, password: hash } });
-  const token = jwt.sign({ userId: user.id, email: user.email, username: user.username }, JWT_SECRET);
-  res.json({ token, user: { id: user.id, email: user.email, username: user.username, elo: user.elo } });
-});
-
-app.post("/api/login", async (req, res) => {
-  const { email, password } = req.body;
-  const user = await prisma.user.findUnique({ where: { email } });
-  if (!user) return res.status(401).json({ error: "invalid credentials" });
-  const ok = await bcrypt.compare(password, user.password);
-  if (!ok) return res.status(401).json({ error: "invalid credentials" });
-  const token = jwt.sign({ userId: user.id, email: user.email, username: user.username }, JWT_SECRET);
-  res.json({ token, user: { id: user.id, email: user.email, username: user.username, elo: user.elo } });
-});
 
 // Search users by username (for challenge feature)
 app.get("/api/users/search", async (req, res) => {
@@ -130,8 +119,8 @@ app.get("/api/users/search", async (req, res) => {
   }
 });
 
-// Get leaderboard
-app.get("/api/leaderboard", async (req, res) => {
+// Get leaderboard (protected)
+app.get("/api/leaderboard", authenticateToken, async (req, res) => {
   try {
     const users = await prisma.user.findMany({
       select: {
@@ -152,8 +141,8 @@ app.get("/api/leaderboard", async (req, res) => {
   }
 });
 
-// Get user matches
-app.get("/api/users/:userId/matches", async (req, res) => {
+// Get user matches (protected)
+app.get("/api/users/:userId/matches", authenticateToken, async (req, res) => {
   const userId = parseInt(req.params.userId);
   if (isNaN(userId)) {
     return res.status(400).json({ error: "invalid user ID" });
@@ -190,6 +179,79 @@ app.get("/api/users/:userId/matches", async (req, res) => {
   } catch (error) {
     res.status(500).json({ error: "failed to fetch user matches" });
   }
+});
+
+// Token refresh endpoint (protected)
+app.post("/api/refresh", authenticateToken, async (req, res) => {
+  try {
+    const { userId } = req.user;
+    const user = await prisma.user.findUnique({ 
+      where: { id: userId },
+      select: { id: true, email: true, username: true, elo: true }
+    });
+    
+    if (!user) {
+      return res.status(404).json({ error: "user not found" });
+    }
+    
+    const newToken = jwt.sign(
+      { userId: user.id, email: user.email, username: user.username },
+      JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+    
+    res.json({ token: newToken, user });
+  } catch (error) {
+    res.status(500).json({ error: "failed to refresh token" });
+  }
+});
+
+// Rate limiting for auth endpoints
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // limit each IP to 5 requests per windowMs
+  message: { error: "Too many authentication attempts, please try again later" },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Apply rate limiting to auth endpoints
+app.post("/api/register", authLimiter, async (req, res) => {
+  const { email, password, username } = req.body;
+  if (!email || !password || !username) return res.status(400).json({ error: "email, password, and username required" });
+  
+  if (!validateUsername(username)) {
+    return res.status(400).json({ error: "Invalid username. Use 3-20 alphanumeric characters or underscores." });
+  }
+  
+  const emailExists = await prisma.user.findUnique({ where: { email } });
+  if (emailExists) return res.status(400).json({ error: "email already taken" });
+  
+  const usernameExists = await prisma.user.findUnique({ where: { username } });
+  if (usernameExists) return res.status(400).json({ error: "username already taken" });
+  
+  const hash = await bcrypt.hash(password, 10);
+  const user = await prisma.user.create({ data: { email, username, password: hash } });
+  const token = jwt.sign(
+    { userId: user.id, email: user.email, username: user.username }, 
+    JWT_SECRET,
+    { expiresIn: '24h' }
+  );
+  res.json({ token, user: { id: user.id, email: user.email, username: user.username, elo: user.elo } });
+});
+
+app.post("/api/login", authLimiter, async (req, res) => {
+  const { email, password } = req.body;
+  const user = await prisma.user.findUnique({ where: { email } });
+  if (!user) return res.status(401).json({ error: "invalid credentials" });
+  const ok = await bcrypt.compare(password, user.password);
+  if (!ok) return res.status(401).json({ error: "invalid credentials" });
+  const token = jwt.sign(
+    { userId: user.id, email: user.email, username: user.username }, 
+    JWT_SECRET,
+    { expiresIn: '24h' }
+  );
+  res.json({ token, user: { id: user.id, email: user.email, username: user.username, elo: user.elo } });
 });
 
 const httpServer = http.createServer(app);
