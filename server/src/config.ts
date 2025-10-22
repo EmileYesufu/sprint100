@@ -23,12 +23,62 @@ export const RATE_LIMIT_MAX = Number(process.env.RATE_LIMIT_MAX || 200);
 export const ENABLE_REQUEST_LOGGING = process.env.ENABLE_REQUEST_LOGGING === "true" || NODE_ENV !== "production";
 
 // Validate critical config
-if (!JWT_SECRET || JWT_SECRET === "dev_secret_change_me") {
-  console.warn("⚠️  WARNING: Using default JWT_SECRET. Set JWT_SECRET env var for production!");
+const requiredEnvVars = {
+  JWT_SECRET: JWT_SECRET,
+  DATABASE_URL: DATABASE_URL,
+  HOST: HOST,
+  PORT: PORT
+};
+
+const missingVars: string[] = [];
+const invalidVars: string[] = [];
+
+// Check for missing required variables
+Object.entries(requiredEnvVars).forEach(([key, value]) => {
+  if (!value || value === "") {
+    missingVars.push(key);
+  }
+});
+
+// Check for invalid values
+if (!JWT_SECRET || JWT_SECRET === "dev_secret_change_me" || JWT_SECRET === "your_jwt_secret_change_this_in_production") {
+  invalidVars.push("JWT_SECRET (using default/placeholder value)");
 }
 
 if (NODE_ENV === "production" && ALLOWED_ORIGINS.includes("*")) {
-  console.warn("⚠️  WARNING: CORS allows all origins (*). Set ALLOWED_ORIGINS for production!");
+  invalidVars.push("ALLOWED_ORIGINS (allows all origins in production)");
+}
+
+if (NODE_ENV === "production" && DATABASE_URL.includes("file:")) {
+  invalidVars.push("DATABASE_URL (using SQLite file in production)");
+}
+
+// Log warnings and errors
+if (missingVars.length > 0) {
+  console.error("❌ Missing required environment variables:");
+  missingVars.forEach(varName => console.error(`   - ${varName}`));
+}
+
+if (invalidVars.length > 0) {
+  console.error("❌ Invalid environment variable values:");
+  invalidVars.forEach(varName => console.error(`   - ${varName}`));
+}
+
+// Exit with error code in production if critical issues
+if (NODE_ENV === "production" && (missingVars.length > 0 || invalidVars.length > 0)) {
+  console.error("🚨 Production environment validation failed. Exiting...");
+  process.exit(1);
+}
+
+// Log warnings for development
+if (NODE_ENV !== "production") {
+  if (!JWT_SECRET || JWT_SECRET === "dev_secret_change_me") {
+    console.warn("⚠️  WARNING: Using default JWT_SECRET. Set JWT_SECRET env var for production!");
+  }
+  
+  if (ALLOWED_ORIGINS.includes("*")) {
+    console.warn("⚠️  WARNING: CORS allows all origins (*). Set ALLOWED_ORIGINS for production!");
+  }
 }
 
 console.log("📋 Server Configuration:");
