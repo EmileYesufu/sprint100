@@ -13,7 +13,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "@/hooks/useAuth";
-import { SERVER_URL } from "@/config";
+import { getServerUrl } from "@/config";
 import { formatElo, formatDate } from "@/utils/formatting";
 import type { MatchHistoryEntry } from "@/types";
 import { colors, typography, spacing } from "@/theme";
@@ -35,7 +35,7 @@ export default function ProfileScreen() {
     setIsLoading(true);
     try {
       // TODO: Replace with actual endpoint when server implements it
-      const response = await fetch(`${SERVER_URL}/api/matches?userId=${user.id}`, {
+      const response = await fetch(`${getServerUrl()}/api/matches?userId=${user.id}`, {
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",

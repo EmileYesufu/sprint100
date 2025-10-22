@@ -1,190 +1,262 @@
-# Testing Documentation
+# Sprint100 Testing Guide
 
-## Overview
+## 🧪 Remote Testing Setup
 
-This project includes comprehensive unit tests for critical game systems using Jest and ts-jest.
+### For External Testers
 
-## Test Coverage
+#### Option 1: Using Environment Variables (Recommended)
+1. **Create `.env` file in the client directory:**
+   ```bash
+   cd client
+   cp .env.example .env
+   ```
 
-### Server Tests
+2. **Edit `.env` file and set your API URL:**
+   ```bash
+   # For ngrok tunnel (recommended for testing)
+   EXPO_PUBLIC_API_URL=https://your-ngrok-url.ngrok.io
+   
+   # For local network (if on same WiFi)
+   EXPO_PUBLIC_API_URL=http://192.168.1.250:4000
+   
+   # For production server
+   EXPO_PUBLIC_API_URL=https://api.sprint100.com
+   ```
 
-#### ELO Rating System (`server/src/utils/elo.test.ts`)
-- ✅ **Equal ratings**: Verifies symmetric win/loss deltas (~16 points)
-- ✅ **Rating differences**: Tests asymmetric deltas for higher/lower rated players
-- ✅ **Upsets**: Validates significant point changes for unexpected outcomes
-- ✅ **Draws**: Ensures proper handling of tie scenarios
-- ✅ **Extreme ratings**: Edge cases with very high/low ratings
-- ✅ **Zero-sum property**: Confirms rating changes balance out
-- ✅ **K-factor verification**: Tests that K=32 is correctly applied
-- ✅ **Formula accuracy**: Validates expected score calculations
+3. **Start the app:**
+   ```bash
+   npx expo start
+   ```
 
-**Coverage:** 100% of ELO calculation logic
+#### Option 2: Using app.json Configuration
+1. **Edit `client/app.json`:**
+   ```json
+   {
+     "expo": {
+       "extra": {
+         "API_URL": "https://your-ngrok-url.ngrok.io"
+       }
+     }
+   }
+   ```
 
-### Client Tests
+2. **Start the app:**
+   ```bash
+   npx expo start
+   ```
 
-#### AI Runner System (`client/src/ai/aiRunner.test.ts`)
-- ✅ **Determinism**: Same seed produces identical behavior
-- ✅ **Seed variation**: Different seeds create different outcomes
-- ✅ **Meters calculation**: Validates 1 step = 0.6 meters formula
-- ✅ **Race completion**: Ensures races finish at 100m
-- ✅ **Difficulty levels**: Hard > Medium > Easy in speed and accuracy
-- ✅ **Personalities**: Tests Consistent, Erratic, and Aggressive traits
-- ✅ **Sprint behavior**: Validates speed boost in final 10%
-- ✅ **Alternating sides**: Checks left/right tap pattern
-- ✅ **Reset functionality**: Confirms deterministic replay capability
-- ✅ **Factory function**: Tests createAIRunners with multiple bots
-- ✅ **Edge cases**: Handles large time jumps, incremental updates
+### For Developers
 
-**Coverage:** ~95% of AI simulation logic
+#### Local Development Setup
+1. **Start the server:**
+   ```bash
+   cd server
+   npm run dev
+   ```
 
-## Running Tests
+2. **Find your machine's IP:**
+   ```bash
+   # macOS/Linux
+   ipconfig getifaddr en0
+   
+   # Windows
+   ipconfig | findstr "IPv4"
+   ```
 
-### Server Tests
+3. **Update client configuration:**
+   ```bash
+   cd client
+   cp .env.example .env
+   ```
+   
+   Edit `.env`:
+   ```bash
+   EXPO_PUBLIC_API_URL=http://YOUR_IP_ADDRESS:4000
+   ```
 
+4. **Start the client:**
+   ```bash
+   npx expo start
+   ```
+
+#### Using ngrok for Public Testing
+1. **Install ngrok:**
+   ```bash
+   npm install -g ngrok
+   ```
+
+2. **Start your server:**
+   ```bash
+   cd server
+   npm run dev
+   ```
+
+3. **Expose server with ngrok:**
+   ```bash
+   ngrok http 4000
+   ```
+
+4. **Copy the ngrok URL and set in client:**
+   ```bash
+   # In client/.env
+   EXPO_PUBLIC_API_URL=https://abc123.ngrok.io
+   ```
+
+## 🔧 Configuration Priority
+
+The app resolves API URL in this order:
+1. **`EXPO_PUBLIC_API_URL`** (from .env file) - **Recommended for testing**
+2. **`Constants.expoConfig?.extra?.API_URL`** (from app.json)
+3. **`SERVER_URL`** (from .env file)
+4. **Default IP** (fallback for local development)
+
+## 📱 Testing on Different Devices
+
+### iOS Simulator
+- Uses localhost by default
+- No network configuration needed
+
+### Physical iPhone
+- Requires your machine's IP address
+- Must be on same WiFi network
+- Use: `http://YOUR_IP:4000`
+
+### Android Emulator
+- Uses `10.0.2.2` instead of localhost
+- Use: `http://10.0.2.2:4000`
+
+### Physical Android Device
+- Requires your machine's IP address
+- Must be on same WiFi network
+- Use: `http://YOUR_IP:4000`
+
+## 🌐 Network Configuration Examples
+
+### Local Network Testing
 ```bash
-cd server
+# Find your IP
+ipconfig getifaddr en0  # macOS
+ipconfig | findstr "IPv4"  # Windows
 
-# Run all tests
-npm test
-
-# Run tests in watch mode
-npm run test:watch
-
-# Run with coverage report
-npm run test:coverage
+# Set in client/.env
+EXPO_PUBLIC_API_URL=http://192.168.1.100:4000
 ```
 
-### Client Tests
-
+### Public Testing with ngrok
 ```bash
+# Start ngrok
+ngrok http 4000
+
+# Copy URL (e.g., https://abc123.ngrok.io)
+# Set in client/.env
+EXPO_PUBLIC_API_URL=https://abc123.ngrok.io
+```
+
+### Production Testing
+```bash
+# Set production URL
+EXPO_PUBLIC_API_URL=https://api.sprint100.com
+```
+
+## 🚨 Troubleshooting
+
+### "Network Error" or "Connection Refused"
+1. **Check server is running:**
+   ```bash
+   curl http://localhost:4000/health
+   ```
+
+2. **Verify IP address:**
+   ```bash
+   # Check your IP
+   ipconfig getifaddr en0
+   
+   # Test from device
+   curl http://YOUR_IP:4000/health
+   ```
+
+3. **Check firewall settings:**
+   - Allow port 4000 through firewall
+   - Ensure server is listening on `0.0.0.0:4000`
+
+### "Metro bundler not found"
+1. **Restart Metro:**
+   ```bash
+   npx expo start --clear
+   ```
+
+2. **Check network connection:**
+   - Ensure device and computer are on same WiFi
+   - Try using ngrok for public access
+
+### App shows "Using default IP" warning
+1. **Set environment variable:**
+   ```bash
+   # In client/.env
+   EXPO_PUBLIC_API_URL=http://YOUR_IP:4000
+   ```
+
+2. **Restart the app:**
+   ```bash
+   npx expo start --clear
+   ```
+
+## 📋 Testing Checklist
+
+### Before Testing
+- [ ] Server is running on port 4000
+- [ ] Server is accessible from network
+- [ ] Client has correct API URL configured
+- [ ] Device and computer are on same network (for local testing)
+
+### During Testing
+- [ ] App connects to server successfully
+- [ ] Login/Register works
+- [ ] Socket connection established
+- [ ] Race functionality works
+- [ ] Leaderboard loads
+
+### After Testing
+- [ ] Report any connection issues
+- [ ] Note which device/network was used
+- [ ] Share any error messages
+
+## 🔗 Quick Commands
+
+### Start Development Environment
+```bash
+# Terminal 1: Start server
+cd server && npm run dev
+
+# Terminal 2: Start client
+cd client && npx expo start
+```
+
+### Start with ngrok
+```bash
+# Terminal 1: Start server
+cd server && npm run dev
+
+# Terminal 2: Start ngrok
+ngrok http 4000
+
+# Terminal 3: Start client with ngrok URL
 cd client
-
-# Run all tests
-npm test
-
-# Run tests in watch mode
-npm run test:watch
-
-# Run with coverage report
-npm run test:coverage
+echo "EXPO_PUBLIC_API_URL=https://YOUR_NGROK_URL.ngrok.io" >> .env
+npx expo start
 ```
 
-## Test Structure
-
-```
-server/
-├── jest.config.js              # Jest configuration
-├── src/
-│   └── utils/
-│       ├── elo.ts              # ELO implementation
-│       └── elo.test.ts         # ELO tests (54 test cases)
-
-client/
-├── jest.config.js              # Jest configuration
-├── src/
-│   └── ai/
-│       ├── aiRunner.ts         # AI implementation
-│       └── aiRunner.test.ts    # AI tests (38 test cases)
-```
-
-## Configuration
-
-### Server (Node.js environment)
-- **Preset**: `ts-jest`
-- **Environment**: `node`
-- **Test pattern**: `**/*.test.ts`, `**/*.spec.ts`
-
-### Client (React/React Native environment)
-- **Preset**: `ts-jest`
-- **Environment**: `jsdom`
-- **Test pattern**: `**/*.test.ts(x)`, `**/*.spec.ts(x)`
-- **Module mapping**: `@/*` resolves to `src/*`
-
-## Continuous Integration
-
-Tests should be run before:
-- ✅ Merging pull requests
-- ✅ Deploying to production
-- ✅ Creating release builds
-
-## Adding New Tests
-
-### Test File Naming Convention
-- Unit tests: `*.test.ts` or `*.spec.ts`
-- Place test files alongside the code they test
-
-### Example Test Structure
-
-```typescript
-import { functionToTest } from './module';
-
-describe('Module Name', () => {
-  describe('functionToTest', () => {
-    test('should handle normal case', () => {
-      const result = functionToTest(input);
-      expect(result).toBe(expected);
-    });
-
-    test('should handle edge case', () => {
-      // Test edge cases
-    });
-  });
-});
-```
-
-## Test Results Summary
-
-### Server
-- **ELO System**: 54 test cases
-- **All Passing**: ✅
-- **Coverage**: 100%
-
-### Client
-- **AI Runner**: 38 test cases
-- **All Passing**: ✅
-- **Coverage**: ~95%
-
-## Pre-Beta Checklist
-
-Before beta release, ensure:
-- [ ] All tests passing (`npm test` in both server/ and client/)
-- [ ] No linter errors
-- [ ] Coverage reports reviewed
-- [ ] Edge cases documented
-- [ ] Performance tests added (if applicable)
-
-## Future Test Additions
-
-Recommended areas for additional testing:
-1. **Server**: Socket.IO event handlers
-2. **Server**: Match pairing logic
-3. **Server**: Database operations (integration tests)
-4. **Client**: useTraining hook
-5. **Client**: SeededRandom utility
-6. **E2E**: Full race simulation (player + AI)
-
-## Troubleshooting
-
-### Tests Not Running
+### Reset Configuration
 ```bash
-# Install dependencies
-npm install
+# Clear Metro cache
+npx expo start --clear
 
-# Clear Jest cache
-npx jest --clearCache
+# Reset environment
+rm client/.env
+cp client/.env.example client/.env
+# Edit client/.env with your settings
 ```
 
-### Module Resolution Errors
-- Check `tsconfig.json` paths match `jest.config.js` moduleNameMapper
-- Ensure `@types/jest` is installed
+---
 
-### TypeScript Errors in Tests
-- Verify `@types/jest` version matches `jest` version
-- Check `tsconfig.json` includes test files
-
-## Resources
-
-- [Jest Documentation](https://jestjs.io/docs/getting-started)
-- [ts-jest Documentation](https://kulshekhar.github.io/ts-jest/)
-- [Testing Best Practices](https://github.com/goldbergyoni/javascript-testing-best-practices)
-
+**💡 Pro Tip**: For external testers, use ngrok for easy public access. For local testing, use your machine's IP address.

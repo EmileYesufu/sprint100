@@ -17,7 +17,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "@/hooks/useAuth";
-import { SERVER_URL } from "@/config";
+import { getServerUrl } from "@/config";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { AuthStackParamList } from "@/navigation/AppNavigator";
 
@@ -57,7 +57,7 @@ export default function RegisterScreen({ navigation }: Props) {
     setError("");
 
     try {
-      const response = await fetch(`${SERVER_URL}/api/register`, {
+      const response = await fetch(`${getServerUrl()}/api/register`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

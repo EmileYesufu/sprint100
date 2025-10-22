@@ -14,7 +14,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "@/hooks/useAuth";
-import { SERVER_URL } from "@/config";
+import { getServerUrl } from "@/config";
 import { formatElo } from "@/utils/formatting";
 import type { LeaderboardEntry } from "@/types";
 
@@ -39,7 +39,7 @@ export default function LeaderboardScreen() {
 
     try {
       // TODO: Replace with actual endpoint when server implements it
-      const response = await fetch(`${SERVER_URL}/api/leaderboard`, {
+      const response = await fetch(`${getServerUrl()}/api/leaderboard`, {
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",

@@ -18,7 +18,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "@/hooks/useAuth";
 import { useSocket } from "@/hooks/useSocket";
-import { SERVER_URL } from "@/config";
+import { getServerUrl } from "@/config";
 import { formatElo } from "@/utils/formatting";
 import type { QueuedPlayer, MatchResult, UserSearchResult, Challenge } from "@/types";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -131,7 +131,7 @@ export default function QueueScreen({ navigation }: Props) {
 
     setIsSearching(true);
     try {
-      const response = await fetch(`${SERVER_URL}/api/users/search?q=${encodeURIComponent(searchQuery)}`, {
+      const response = await fetch(`${getServerUrl()}/api/users/search?q=${encodeURIComponent(searchQuery)}`, {
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",

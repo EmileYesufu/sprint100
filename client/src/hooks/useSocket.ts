@@ -5,7 +5,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { io, Socket } from "socket.io-client";
-import { SERVER_URL } from "@/config";
+import { getServerUrl } from "@/config";
 import { useAuth } from "@/hooks/useAuth";
 
 interface UseSocketReturn {
@@ -35,7 +35,7 @@ export function useSocket(): UseSocketReturn {
     }
 
     // Connect to socket.io server with token authentication
-    const socket = io(SERVER_URL, {
+    const socket = io(getServerUrl(), {
       auth: { token },
       reconnection: true,
       reconnectionDelay: 1000,
