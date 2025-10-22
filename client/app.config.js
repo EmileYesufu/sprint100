@@ -52,7 +52,7 @@ export default {
       eas: {
         projectId: "auto-generate"
       },
-      API_URL: process.env.EXPO_PUBLIC_API_URL,
+      API_URL: process.env.EXPO_PUBLIC_API_URL || "https://api.sprint100.com",
       APP_ENV: process.env.APP_ENV || "development"
     },
     plugins: [
