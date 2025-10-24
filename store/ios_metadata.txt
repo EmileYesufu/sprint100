@@ -1,0 +1,59 @@
+# iOS App Store Metadata
+
+## App Information
+- **App Name**: Sprint100
+- **Subtitle**: Real-Time Sprint Racing
+- **Bundle ID**: com.sprint100.app
+- **Version**: 1.0.0
+- **Category**: Games > Sports
+- **Secondary Category**: Games > Racing
+
+## App Description (Short)
+Race against players worldwide in intense 100-meter sprint competitions. Challenge friends, climb the leaderboard, and become the ultimate sprinter!
+
+## App Description (Full)
+Sprint100 is the ultimate mobile racing game that brings the excitement of track and field to your fingertips. Challenge players from around the world in real-time 100-meter sprint races and climb the global leaderboard.
+
+## Keywords
+racing, sprint, multiplayer, competitive, sports, track, leaderboard, ELO, real-time, challenge, training, mobile game, sports game, racing game, competitive gaming, online multiplayer, global leaderboard, sprint racing, track and field, sports competition
+
+## What's New (Version 1.0.0)
+- Initial release
+- Real-time multiplayer racing
+- Global leaderboard with ELO system
+- Training mode
+- Quick match and challenge system
+- User profiles and statistics
+
+## App Store Connect Information
+- **Age Rating**: 4+ (No objectionable content)
+- **Content Rights**: We have the right to use all content in this app
+- **Export Compliance**: No encryption used
+- **App Review Information**:
+  - Demo Account: test@sprint100.com / TestPassword123
+  - Review Notes: This is a multiplayer racing game. Use the demo account to test all features including online racing and leaderboard functionality.
+
+## Screenshots Required
+- iPhone 6.7" (iPhone 14 Pro Max)
+- iPhone 6.5" (iPhone 11 Pro Max)
+- iPhone 5.5" (iPhone 8 Plus)
+- iPad Pro 12.9" (6th generation)
+- iPad Pro 12.9" (2nd generation)
+
+## App Icon
+- 1024x1024 pixels
+- PNG format
+- No transparency
+- No rounded corners (Apple will add them)
+
+## Promotional Text
+🏃‍♂️ The ultimate 100-meter sprint racing game! Race against players worldwide, climb the leaderboard, and become the fastest sprinter on the planet. Simple tap-to-sprint gameplay with competitive ELO rankings. Download now and start your sprinting career!
+
+## Marketing URL
+https://sprint100.com
+
+## Support URL
+https://sprint100.com/support
+
+## Privacy Policy URL
+https://sprint100.com/privacy-policy

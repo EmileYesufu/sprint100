@@ -1,0 +1,36 @@
+https://sprint100.com/privacy-policy
+
+---
+Privacy Policy URL for App Store Connect
+
+This URL should point to a comprehensive privacy policy that covers:
+
+1. Data Collection:
+   - User account information (email, username)
+   - Game performance data (race times, ELO ratings)
+   - Device information for technical support
+
+2. Data Usage:
+   - Account management and authentication
+   - Game statistics and leaderboard rankings
+   - Technical support and app improvement
+
+3. Data Sharing:
+   - Public leaderboard information (username, ELO rating)
+   - No personal data shared with third parties
+
+4. Data Security:
+   - Secure authentication with JWT tokens
+   - Encrypted data transmission
+   - Secure storage of user credentials
+
+5. User Rights:
+   - Account deletion
+   - Data export
+   - Privacy settings
+
+6. Contact Information:
+   - Support email
+   - Privacy policy updates
+
+Note: This URL must be live and accessible before app submission to App Store Connect.
