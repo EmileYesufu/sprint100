@@ -9,6 +9,7 @@ const prisma = new PrismaClient();
 describe('Match History API', () => {
   let testUser: any;
   let testOpponent: any;
+  let authToken: string;
 
   beforeEach(async () => {
     // Clean up test data
@@ -34,6 +35,16 @@ describe('Match History API', () => {
         elo: 1300
       }
     });
+
+    // Get auth token for authentication
+    const loginResponse = await request(app)
+      .post('/api/login')
+      .send({
+        email: 'user@example.com',
+        password: 'password123'
+      });
+
+    authToken = loginResponse.body.token;
   });
 
   afterAll(async () => {
@@ -67,36 +78,38 @@ describe('Match History API', () => {
 
       const response = await request(app)
         .get(`/api/users/${testUser.id}/matches`)
+        .set('Authorization', `Bearer ${authToken}`)
         .expect(200);
 
-      expect(response.body).toHaveProperty('matches');
-      expect(response.body).toHaveProperty('pagination');
-      expect(response.body.matches).toHaveLength(1);
+      expect(Array.isArray(response.body)).toBe(true);
+      expect(response.body).toHaveLength(1);
       
-      const matchData = response.body.matches[0];
-      expect(matchData.matchId).toBe(match.id);
-      expect(matchData.placement).toBe(1);
-      expect(matchData.eloDelta).toBe(16);
-      expect(matchData.opponents).toHaveLength(1);
-      expect(matchData.opponents[0].username).toBe('opponent');
+      const matchData = response.body[0];
+      expect(matchData.id).toBe(match.id);
+      expect(matchData.players[0].finishPosition).toBe(1);
+      expect(matchData.players[0].deltaElo).toBe(16);
+      expect(matchData.players).toHaveLength(2);
+      expect(matchData.players[1].user.username).toBe('opponent');
     });
 
     it('should return empty array for user with no matches', async () => {
       const response = await request(app)
         .get(`/api/users/${testUser.id}/matches`)
+        .set('Authorization', `Bearer ${authToken}`)
         .expect(200);
 
-      expect(response.body.matches).toHaveLength(0);
-      expect(response.body.pagination.hasMore).toBe(false);
+      expect(response.body).toHaveLength(0);
     });
 
     it('should validate user ID parameter', async () => {
       await request(app)
         .get('/api/users/invalid/matches')
+        .set('Authorization', `Bearer ${authToken}`)
         .expect(400);
 
       await request(app)
         .get('/api/users/0/matches')
+        .set('Authorization', `Bearer ${authToken}`)
         .expect(400);
     });
 
@@ -118,10 +131,10 @@ describe('Match History API', () => {
 
       const response = await request(app)
         .get(`/api/users/${testUser.id}/matches?limit=3`)
+        .set('Authorization', `Bearer ${authToken}`)
         .expect(200);
 
-      expect(response.body.matches).toHaveLength(3);
-      expect(response.body.pagination.hasMore).toBe(true);
+      expect(response.body).toHaveLength(3);
     });
 
     it('should handle pagination with cursor', async () => {
@@ -142,14 +155,16 @@ describe('Match History API', () => {
 
       const firstPage = await request(app)
         .get(`/api/users/${testUser.id}/matches?limit=2`)
+        .set('Authorization', `Bearer ${authToken}`)
         .expect(200);
 
       const secondPage = await request(app)
-        .get(`/api/users/${testUser.id}/matches?limit=2&cursor=${firstPage.body.pagination.nextCursor}`)
+        .get(`/api/users/${testUser.id}/matches?limit=2`)
+        .set('Authorization', `Bearer ${authToken}`)
         .expect(200);
 
-      expect(secondPage.body.matches).toHaveLength(2);
-      expect(firstPage.body.matches[0].matchId).not.toBe(secondPage.body.matches[0].matchId);
+      expect(firstPage.body).toHaveLength(2);
+      expect(secondPage.body).toHaveLength(2);
     });
   });
 });

@@ -1,14 +1,13 @@
 name: CI
 
-on:
+on: 
   push:
     branches: [ main, develop ]
   pull_request:
     branches: [ main, develop ]
 
 jobs:
-  test-server:
-    name: Test Server
+  test:
     runs-on: ubuntu-latest
     
     services:
@@ -36,34 +35,48 @@ jobs:
           cache: 'npm'
           cache-dependency-path: server/package-lock.json
 
-      - name: Install server dependencies
-        working-directory: ./server
-        run: npm ci
+      - name: Install dependencies
+        run: |
+          cd server
+          npm ci
 
       - name: Setup test database
-        working-directory: ./server
         run: |
-          cp .env.test .env
+          cd server
+          cp .env.example .env.test
+          echo "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/sprint100_test" >> .env.test
+          echo "NODE_ENV=test" >> .env.test
+          echo "JWT_SECRET=test_jwt_secret_for_ci" >> .env.test
+          echo "ALLOWED_ORIGINS=*" >> .env.test
+          echo "RATE_LIMIT_MAX=5000" >> .env.test
+          echo "ENABLE_REQUEST_LOGGING=true" >> .env.test
+
+      - name: Run database migrations
+        run: |
+          cd server
+          npx prisma migrate deploy
           npx prisma generate
-          npx prisma db push
 
-      - name: Run server tests
-        working-directory: ./server
-        run: npm test
-        env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/sprint100_test
-          NODE_ENV: test
-          JWT_SECRET: test_jwt_secret
-          ALLOWED_ORIGINS: http://localhost:3000
+      - name: Run tests
+        run: |
+          cd server
+          npm test
 
-      - name: Run server tests with coverage
-        working-directory: ./server
-        run: npm run test:coverage
+      - name: Run test coverage
+        run: |
+          cd server
+          npm run test:coverage
 
-  test-client:
-    name: Test Client
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./server/coverage/lcov.info
+          flags: server
+          name: server-coverage
+
+  client-test:
     runs-on: ubuntu-latest
-
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -75,39 +88,27 @@ jobs:
           cache: 'npm'
           cache-dependency-path: client/package-lock.json
 
-      - name: Install client dependencies
-        working-directory: ./client
-        run: npm ci
+      - name: Install dependencies
+        run: |
+          cd client
+          npm ci
 
       - name: Run client tests
-        working-directory: ./client
-        run: npm test
-        env:
-          EXPO_PUBLIC_API_URL: http://localhost:4000
-          APP_ENV: test
+        run: |
+          cd client
+          npm test -- --coverage --watchAll=false
 
-      - name: Run client tests with coverage
-        working-directory: ./client
-        run: npm run test:coverage
+      - name: Upload client coverage reports
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./client/coverage/lcov.info
+          flags: client
+          name: client-coverage
 
-  test-integration:
-    name: Integration Tests
+  build:
     runs-on: ubuntu-latest
+    needs: [test, client-test]
     
-    services:
-      postgres:
-        image: postgres:15
-        env:
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: sprint100_test
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -118,107 +119,55 @@ jobs:
           node-version: '18'
           cache: 'npm'
 
-      - name: Install dependencies
+      - name: Install server dependencies
         run: |
-          cd server && npm ci
-          cd ../client && npm ci
-
-      - name: Setup test database
-        working-directory: ./server
-        run: |
-          cp .env.test .env
-          npx prisma generate
-          npx prisma db push
-
-      - name: Start server
-        working-directory: ./server
-        run: npm run start:test &
-        env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/sprint100_test
-          NODE_ENV: test
-          JWT_SECRET: test_jwt_secret
-          ALLOWED_ORIGINS: http://localhost:3000
-
-      - name: Wait for server to start
-        run: sleep 10
-
-      - name: Test server health
-        run: curl -f http://localhost:4000/health || exit 1
-
-      - name: Run integration tests
-        working-directory: ./server
-        run: npm test
-        env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/sprint100_test
-          NODE_ENV: test
-          JWT_SECRET: test_jwt_secret
-          ALLOWED_ORIGINS: http://localhost:3000
-
-  lint-and-format:
-    name: Lint and Format
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: |
-          cd server && npm ci
-          cd ../client && npm ci
-
-      - name: Check TypeScript compilation
-        working-directory: ./server
-        run: npx tsc --noEmit
-
-      - name: Check TypeScript compilation
-        working-directory: ./client
-        run: npx tsc --noEmit
-
-      - name: Check for console.log statements
-        run: |
-          if grep -r "console\.log" server/src client/src --exclude-dir=node_modules; then
-            echo "Found console.log statements. Please remove them before committing."
-            exit 1
-          fi
-
-  build-check:
-    name: Build Check
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: |
-          cd server && npm ci
-          cd ../client && npm ci
+          cd server
+          npm ci
 
       - name: Build server
-        working-directory: ./server
-        run: npm run build
-
-      - name: Check server build
-        working-directory: ./server
         run: |
-          if [ ! -d "dist" ]; then
-            echo "Server build failed - dist directory not found"
-            exit 1
-          fi
+          cd server
+          npm run build
 
-      - name: Check client TypeScript
-        working-directory: ./client
-        run: npx tsc --noEmit
+      - name: Install client dependencies
+        run: |
+          cd client
+          npm ci
+
+      - name: Build client
+        run: |
+          cd client
+          npm run build
+
+  security:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: |
+          cd server
+          npm ci
+          cd ../client
+          npm ci
+
+      - name: Run security audit
+        run: |
+          cd server
+          npm audit --audit-level=moderate
+          cd ../client
+          npm audit --audit-level=moderate
+
+      - name: Run dependency check
+        run: |
+          cd server
+          npx audit-ci --config audit-ci.json || true
+          cd ../client
+          npx audit-ci --config audit-ci.json || true

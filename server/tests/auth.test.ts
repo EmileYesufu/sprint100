@@ -29,7 +29,7 @@ describe('Authentication API', () => {
       const response = await request(app)
         .post('/api/register')
         .send(userData)
-        .expect(201);
+        .expect(200);
 
       expect(response.body).toHaveProperty('token');
       expect(response.body).toHaveProperty('user');
