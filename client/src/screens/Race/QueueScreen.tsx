@@ -18,8 +18,10 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "@/hooks/useAuth";
 import { useSocket } from "@/hooks/useSocket";
+import { useNetwork } from "@/hooks/useNetwork";
 import { getServerUrl } from "@/config";
 import { formatElo } from "@/utils/formatting";
+import { handleError } from "@/utils/errorHandler";
 import type { QueuedPlayer, MatchResult, UserSearchResult, Challenge } from "@/types";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { RaceStackParamList } from "@/navigation/AppNavigator";
@@ -30,6 +32,7 @@ type MatchMode = "queue" | "challenge";
 export default function QueueScreen({ navigation }: Props) {
   const { user, updateUser, token } = useAuth();
   const { socket, isConnected, joinQueue, leaveQueue } = useSocket();
+  const { isOnline, isOfflineMode } = useNetwork();
   
   // Queue state
   const [inQueue, setInQueue] = useState(false);
@@ -129,6 +132,11 @@ export default function QueueScreen({ navigation }: Props) {
       return;
     }
 
+    if (isOfflineMode) {
+      Alert.alert("Offline Mode", "Search is not available when offline");
+      return;
+    }
+
     setIsSearching(true);
     try {
       const response = await fetch(`${getServerUrl()}/api/users/search?q=${encodeURIComponent(searchQuery)}`, {
@@ -142,11 +150,10 @@ export default function QueueScreen({ navigation }: Props) {
         const data = await response.json();
         setSearchResults(data.users || []);
       } else {
-        Alert.alert("Search Failed", "Could not search users");
+        throw new Error(`Search failed with status: ${response.status}`);
       }
     } catch (error) {
-      console.error("Search error:", error);
-      Alert.alert("Search Failed", "Could not search users");
+      handleError(error, "User search");
     } finally {
       setIsSearching(false);
     }
@@ -230,11 +237,13 @@ export default function QueueScreen({ navigation }: Props) {
           <View style={styles.queueSection}>
             {!inQueue ? (
               <TouchableOpacity
-                style={[styles.button, styles.joinButton, !isConnected && styles.buttonDisabled]}
+                style={[styles.button, styles.joinButton, (!isConnected || isOfflineMode) && styles.buttonDisabled]}
                 onPress={handleJoinQueue}
-                disabled={!isConnected}
+                disabled={!isConnected || isOfflineMode}
               >
-                <Text style={styles.buttonText}>Join Queue</Text>
+                <Text style={[styles.buttonText, (!isConnected || isOfflineMode) && styles.buttonTextDisabled]}>
+                  {isOfflineMode ? "Offline Mode" : "Join Queue"}
+                </Text>
               </TouchableOpacity>
             ) : (
               <>
@@ -283,14 +292,16 @@ export default function QueueScreen({ navigation }: Props) {
               autoCapitalize="none"
             />
             <TouchableOpacity
-              style={styles.searchButton}
+              style={[styles.searchButton, isOfflineMode && styles.buttonDisabled]}
               onPress={handleSearchUsers}
-              disabled={isSearching}
+              disabled={isSearching || isOfflineMode}
             >
               {isSearching ? (
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
-                <Text style={styles.searchButtonText}>Search</Text>
+                <Text style={[styles.searchButtonText, isOfflineMode && styles.buttonTextDisabled]}>
+                  {isOfflineMode ? "Offline" : "Search"}
+                </Text>
               )}
             </TouchableOpacity>
           </View>
@@ -309,10 +320,13 @@ export default function QueueScreen({ navigation }: Props) {
                       <Text style={styles.resultElo}>Elo: {formatElo(item.elo)}</Text>
                     </View>
                     <TouchableOpacity
-                      style={styles.challengeButton}
+                      style={[styles.challengeButton, isOfflineMode && styles.buttonDisabled]}
                       onPress={() => handleSendChallenge(item.username)}
+                      disabled={isOfflineMode}
                     >
-                      <Text style={styles.challengeButtonText}>Challenge</Text>
+                      <Text style={[styles.challengeButtonText, isOfflineMode && styles.buttonTextDisabled]}>
+                        {isOfflineMode ? "Offline" : "Challenge"}
+                      </Text>
                     </TouchableOpacity>
                   </View>
                 )}
@@ -630,5 +644,12 @@ const styles = StyleSheet.create({
     color: "#FF3B30",
     textAlign: "center",
     marginTop: 24,
+  },
+  buttonDisabled: {
+    backgroundColor: "#E5E5E7",
+    borderColor: "#D1D1D6",
+  },
+  buttonTextDisabled: {
+    color: "#8E8E93",
   },
 });
