@@ -2,7 +2,7 @@
 import dotenv from "dotenv";
 import path from "path";
 
-const envFile = process.env.NODE_ENV === "test" ? ".env.test" : ".env";
+const envFile = (process.env.NODE_ENV === "test" || process.env.NODE_ENV === "testing") ? ".env.test" : ".env";
 dotenv.config({ path: path.resolve(process.cwd(), envFile) });
 
 function parseList(raw?: string): string[] {
@@ -19,7 +19,10 @@ export const ALLOWED_ORIGINS = parseList(process.env.ALLOWED_ORIGINS).length > 0
 export const DATABASE_URL = process.env.DATABASE_URL || "file:./prisma/dev.db";
 export const NODE_ENV = process.env.NODE_ENV || "development";
 export const RATE_LIMIT_WINDOW_MS = Number(process.env.RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000);
-export const RATE_LIMIT_MAX = Number(process.env.RATE_LIMIT_MAX || 200);
+// Environment-based rate limiting
+// Testing environment gets much higher limits to avoid blocking automated tests
+const maxRequests = process.env.NODE_ENV === 'testing' ? 5000 : 100;
+export const RATE_LIMIT_MAX = Number(process.env.RATE_LIMIT_MAX || maxRequests);
 export const ENABLE_REQUEST_LOGGING = process.env.ENABLE_REQUEST_LOGGING === "true" || NODE_ENV !== "production";
 
 // Validate critical config
