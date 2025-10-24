@@ -1,0 +1,204 @@
+config:
+  target: 'http://localhost:4000'
+  phases:
+    # Warm-up phase
+    - duration: 30
+      arrivalRate: 5
+      name: "Warm-up phase"
+    # Ramp-up phase
+    - duration: 60
+      arrivalRate: 10
+      rampTo: 50
+      name: "Ramp-up phase"
+    # Sustained load phase
+    - duration: 120
+      arrivalRate: 50
+      name: "Sustained load phase"
+    # Peak load phase (100 concurrent users)
+    - duration: 60
+      arrivalRate: 100
+      name: "Peak load phase"
+    # Cool-down phase
+    - duration: 30
+      arrivalRate: 10
+      name: "Cool-down phase"
+  defaults:
+    headers:
+      Content-Type: 'application/json'
+  plugins:
+    metrics-by-endpoint:
+      useOnlyRequestNames: true
+  variables:
+    baseUrl: 'http://localhost:4000'
+
+scenarios:
+  - name: "Race Join Load Test"
+    weight: 100
+    flow:
+      # Step 1: Register a new user
+      - function: "generateUserData"
+      - post:
+          url: "/api/register"
+          json:
+            email: "{{ email }}"
+            username: "{{ username }}"
+            password: "{{ password }}"
+          capture:
+            - json: "$.token"
+              as: "authToken"
+            - json: "$.user.id"
+              as: "userId"
+          expect:
+            - statusCode: 200
+          name: "User Registration"
+
+      # Step 2: Login to get fresh token
+      - post:
+          url: "/api/login"
+          json:
+            email: "{{ email }}"
+            password: "{{ password }}"
+          capture:
+            - json: "$.token"
+              as: "authToken"
+          expect:
+            - statusCode: 200
+          name: "User Login"
+
+      # Step 3: Get leaderboard (API call)
+      - get:
+          url: "/api/leaderboard"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          expect:
+            - statusCode: 200
+          name: "Get Leaderboard"
+
+      # Step 4: Simulate race join (multiple API calls)
+      - loop:
+          - get:
+              url: "/api/leaderboard"
+              headers:
+                Authorization: "Bearer {{ authToken }}"
+              name: "Leaderboard Check"
+          - post:
+              url: "/api/race/join"
+              headers:
+                Authorization: "Bearer {{ authToken }}"
+              json:
+                raceType: "sprint"
+              name: "Race Join Attempt"
+          - get:
+              url: "/api/leaderboard"
+              headers:
+                Authorization: "Bearer {{ authToken }}"
+              name: "Post-Join Leaderboard"
+          count: 3
+
+      # Step 5: Simulate race completion
+      - post:
+          url: "/api/race/complete"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          json:
+            raceId: "test-race-{{ userId }}"
+            finishTime: 45000
+            position: 1
+          name: "Race Completion"
+
+      # Step 6: Get match history
+      - get:
+          url: "/api/users/{{ userId }}/matches"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          name: "Get Match History"
+
+      # Step 7: Final leaderboard check
+      - get:
+          url: "/api/leaderboard"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          name: "Final Leaderboard Check"
+
+  - name: "High-Frequency API Calls"
+    weight: 30
+    flow:
+      - function: "generateUserData"
+      - post:
+          url: "/api/register"
+          json:
+            email: "{{ email }}"
+            username: "{{ username }}"
+            password: "{{ password }}"
+          capture:
+            - json: "$.token"
+              as: "authToken"
+          name: "Quick Registration"
+
+      # Rapid-fire API calls
+      - loop:
+          - get:
+              url: "/api/leaderboard"
+              headers:
+                Authorization: "Bearer {{ authToken }}"
+              name: "Rapid Leaderboard"
+          - get:
+              url: "/api/health"
+              name: "Health Check"
+          count: 10
+
+  - name: "Authentication Stress Test"
+    weight: 20
+    flow:
+      - function: "generateUserData"
+      - post:
+          url: "/api/register"
+          json:
+            email: "{{ email }}"
+            username: "{{ username }}"
+            password: "{{ password }}"
+          capture:
+            - json: "$.token"
+              as: "authToken"
+          name: "Auth Registration"
+
+      # Multiple login attempts
+      - loop:
+          - post:
+              url: "/api/login"
+              json:
+                email: "{{ email }}"
+                password: "{{ password }}"
+              name: "Repeated Login"
+          count: 5
+
+      # Protected endpoint access
+      - loop:
+          - get:
+              url: "/api/leaderboard"
+              headers:
+                Authorization: "Bearer {{ authToken }}"
+              name: "Protected Endpoint Access"
+          count: 8
+
+functions:
+  generateUserData: |
+    function() {
+      const timestamp = Date.now();
+      const randomId = Math.floor(Math.random() * 10000);
+      return {
+        email: `loadtest${randomId}@example.com`,
+        username: `loadtest${randomId}`,
+        password: 'password123'
+      };
+    }
+
+# Custom metrics and reporting
+plugins:
+  metrics-by-endpoint:
+    useOnlyRequestNames: true
+  publish-metrics:
+    - type: 'statsd'
+      host: 'localhost'
+      port: 8125
+      prefix: 'sprint100.loadtest'

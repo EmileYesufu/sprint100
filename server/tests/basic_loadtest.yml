@@ -1,0 +1,23 @@
+config:
+  target: 'http://localhost:4000'
+  phases:
+    - duration: 30
+      arrivalRate: 10
+      name: "Basic Load Test"
+  defaults:
+    headers:
+      Content-Type: 'application/json'
+
+scenarios:
+  - name: "Health Check Load Test"
+    weight: 100
+    flow:
+      - get:
+          url: "/health"
+          name: "Health Check"
+      - get:
+          url: "/health"
+          name: "Health Check 2"
+      - get:
+          url: "/health"
+          name: "Health Check 3"

@@ -1,0 +1,96 @@
+config:
+  target: 'http://localhost:4000'
+  phases:
+    # Warm-up phase
+    - duration: 10
+      arrivalRate: 2
+      name: "Warm-up phase"
+    # Ramp-up phase
+    - duration: 20
+      arrivalRate: 5
+      rampTo: 20
+      name: "Ramp-up phase"
+    # Sustained load phase
+    - duration: 30
+      arrivalRate: 20
+      name: "Sustained load phase"
+    # Peak load phase (50 concurrent users)
+    - duration: 20
+      arrivalRate: 50
+      name: "Peak load phase"
+  defaults:
+    headers:
+      Content-Type: 'application/json'
+  plugins:
+    metrics-by-endpoint:
+      useOnlyRequestNames: true
+
+scenarios:
+  - name: "API Load Test"
+    weight: 100
+    flow:
+      # Step 1: Health check
+      - get:
+          url: "/health"
+          name: "Health Check"
+
+      # Step 2: Register a new user
+      - function: "generateUserData"
+      - post:
+          url: "/api/register"
+          json:
+            email: "{{ email }}"
+            username: "{{ username }}"
+            password: "{{ password }}"
+          capture:
+            - json: "$.token"
+              as: "authToken"
+          expect:
+            - statusCode: 200
+          name: "User Registration"
+
+      # Step 3: Login
+      - post:
+          url: "/api/login"
+          json:
+            email: "{{ email }}"
+            password: "{{ password }}"
+          capture:
+            - json: "$.token"
+              as: "authToken"
+          expect:
+            - statusCode: 200
+          name: "User Login"
+
+      # Step 4: Get leaderboard
+      - get:
+          url: "/api/leaderboard"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          expect:
+            - statusCode: 200
+          name: "Get Leaderboard"
+
+      # Step 5: Multiple API calls
+      - loop:
+          - get:
+              url: "/api/leaderboard"
+              headers:
+                Authorization: "Bearer {{ authToken }}"
+              name: "Repeated Leaderboard"
+          - get:
+              url: "/health"
+              name: "Health Check"
+        count: 3
+
+functions:
+  generateUserData: |
+    function() {
+      const timestamp = Date.now();
+      const randomId = Math.floor(Math.random() * 10000);
+      return {
+        email: `loadtest${randomId}@example.com`,
+        username: `loadtest${randomId}`,
+        password: 'password123'
+      };
+    }
