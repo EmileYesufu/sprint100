@@ -2,7 +2,13 @@
 import dotenv from "dotenv";
 import path from "path";
 
-const envFile = (process.env.NODE_ENV === "test" || process.env.NODE_ENV === "testing") ? ".env.test" : ".env";
+// Determine which .env file to load based on NODE_ENV
+let envFile = ".env";
+if (process.env.NODE_ENV === "test" || process.env.NODE_ENV === "testing") {
+  envFile = ".env.test";
+} else if (process.env.NODE_ENV === "production") {
+  envFile = ".env.production";
+}
 dotenv.config({ path: path.resolve(process.cwd(), envFile) });
 
 function parseList(raw?: string): string[] {
@@ -44,7 +50,10 @@ Object.entries(requiredEnvVars).forEach(([key, value]) => {
 });
 
 // Check for invalid values
-if (!JWT_SECRET || JWT_SECRET === "dev_secret_change_me" || JWT_SECRET === "your_jwt_secret_change_this_in_production") {
+if (!JWT_SECRET || 
+    JWT_SECRET === "dev_secret_change_me" || 
+    JWT_SECRET === "your_jwt_secret_change_this_in_production" ||
+    JWT_SECRET === "<secure-token>") {
   invalidVars.push("JWT_SECRET (using default/placeholder value)");
 }
 

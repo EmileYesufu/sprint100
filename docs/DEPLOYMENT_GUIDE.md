@@ -4,6 +4,233 @@ This guide covers deployment procedures, automated backups, and production opera
 
 ---
 
+## 🔐 Production Environment Variables
+
+### Overview
+
+The application uses environment variables for configuration. Production environment files (`.env.production`) are automatically loaded when `NODE_ENV=production` is set.
+
+⚠️ **Important**: Never commit actual secrets or credentials to git. `.env.production` files are gitignored by default.
+
+---
+
+### Server Environment Variables
+
+**Location**: `server/.env.production`
+
+**Required Variables:**
+
+```bash
+NODE_ENV=production
+DATABASE_URL=postgresql://user:pass@host:5432/sprint100
+JWT_SECRET=<secure-token>
+ALLOWED_ORIGINS=https://sprint100.app,https://www.sprint100.app
+PORT=4000
+HOST=0.0.0.0
+```
+
+**Optional Variables:**
+
+```bash
+RATE_LIMIT_MAX=100
+RATE_LIMIT_WINDOW_MS=900000
+ENABLE_REQUEST_LOGGING=false
+```
+
+**Configuration Details:**
+
+| Variable | Description | Production Requirement |
+|----------|-------------|----------------------|
+| `NODE_ENV` | Environment mode | Must be `production` |
+| `DATABASE_URL` | PostgreSQL connection string | Required, must use PostgreSQL (not SQLite) |
+| `JWT_SECRET` | Secret key for JWT token signing | Required, must be secure (min 32 chars) |
+| `ALLOWED_ORIGINS` | Comma-separated list of allowed CORS origins | Required, no wildcards (`*`) allowed |
+| `PORT` | Server port | Default: 4000 |
+| `HOST` | Server bind address | Default: 0.0.0.0 |
+| `RATE_LIMIT_MAX` | Max requests per window | Default: 100 |
+| `RATE_LIMIT_WINDOW_MS` | Rate limit window in milliseconds | Default: 900000 (15 min) |
+| `ENABLE_REQUEST_LOGGING` | Enable request logging | Default: false in production |
+
+**Generating JWT Secret:**
+
+```bash
+# Generate a secure random secret (recommended)
+openssl rand -base64 32
+
+# Or using Node.js
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+```
+
+---
+
+### Client Environment Variables
+
+**Location**: `client/.env.production`
+
+**Required Variables:**
+
+```bash
+EXPO_PUBLIC_API_URL=https://api.sprint100.app
+APP_ENV=production
+```
+
+**Configuration Details:**
+
+| Variable | Description | Production Requirement |
+|----------|-------------|----------------------|
+| `EXPO_PUBLIC_API_URL` | API server URL | Required, must use HTTPS |
+| `APP_ENV` | App environment mode | Must be `production` |
+
+---
+
+### Environment Validation
+
+The server automatically validates environment variables on startup:
+
+✅ **Development/Test**: Logs warnings for missing/invalid variables  
+🚨 **Production**: **Exits with error code 1** if any required variable is missing or invalid
+
+**Validation Checks:**
+
+1. **Required Variables Present**: `JWT_SECRET`, `DATABASE_URL`, `HOST`, `PORT`
+2. **JWT_SECRET**: Must not be default/placeholder values
+3. **ALLOWED_ORIGINS**: Cannot use wildcard (`*`) in production
+4. **DATABASE_URL**: Must use PostgreSQL (not SQLite file) in production
+
+**Example Error Output:**
+
+```
+❌ Missing required environment variables:
+   - JWT_SECRET
+   - DATABASE_URL
+❌ Invalid environment variable values:
+   - JWT_SECRET (using default/placeholder value)
+   - ALLOWED_ORIGINS (allows all origins in production)
+🚨 Production environment validation failed. Exiting...
+```
+
+---
+
+### Setting Up Production Environment
+
+**1. Create Server `.env.production`:**
+
+```bash
+cd server
+cp .env.example .env.production  # If example exists, or create manually
+nano .env.production  # Edit with your production values
+```
+
+**2. Create Client `.env.production`:**
+
+```bash
+cd client
+nano .env.production  # Create and add production values
+```
+
+**3. Verify Configuration:**
+
+```bash
+# Server (will exit if validation fails)
+cd server
+npm run build
+NODE_ENV=production node dist/server.js
+
+# Expected output:
+# 📋 Server Configuration:
+#    NODE_ENV: production
+#    HOST: 0.0.0.0
+#    PORT: 4000
+#    ALLOWED_ORIGINS: https://sprint100.app
+#    DATABASE_URL: External DB
+#    ...
+```
+
+---
+
+### Platform-Specific Environment Variables
+
+**Render.com:**
+
+1. Navigate to **Dashboard → Your Service → Environment**
+2. Add environment variables via dashboard (automatically injected)
+3. Alternative: Use Render's **Environment Variables** section
+
+**Railway.app:**
+
+1. Navigate to **Dashboard → Your Service → Variables**
+2. Add variables via dashboard or Railway CLI:
+   ```bash
+   railway variables set JWT_SECRET="your-secret-here"
+   ```
+
+**Heroku:**
+
+```bash
+heroku config:set JWT_SECRET="your-secret-here"
+heroku config:set DATABASE_URL="postgresql://..."
+heroku config:set ALLOWED_ORIGINS="https://sprint100.app"
+```
+
+**Docker/Container:**
+
+```bash
+# Using .env.production file
+docker run --env-file server/.env.production your-image
+
+# Or inline
+docker run -e NODE_ENV=production -e JWT_SECRET="..." your-image
+```
+
+---
+
+### Production Startup
+
+**Using npm scripts:**
+
+```bash
+# Server
+cd server
+npm run build
+npm run start:prod  # Automatically sets NODE_ENV=production
+```
+
+**Manual:**
+
+```bash
+# Server
+cd server
+NODE_ENV=production node dist/server.js
+
+# Client (Expo)
+cd client
+EXPO_PUBLIC_API_URL=https://api.sprint100.app expo start --prod
+```
+
+**Package.json Script:**
+
+The `start:prod` script in `server/package.json` automatically:
+- Sets `NODE_ENV=production`
+- Loads `.env.production` file
+- Validates environment variables
+- Exits if validation fails
+
+---
+
+### Security Best Practices
+
+1. ✅ **Never commit secrets to git** - `.env.production` files are gitignored
+2. ✅ **Use strong JWT secrets** - Minimum 32 characters, cryptographically random
+3. ✅ **Restrict CORS origins** - Never use `*` in production
+4. ✅ **Use HTTPS** - All API URLs must use HTTPS in production
+5. ✅ **Rotate secrets regularly** - Change JWT_SECRET periodically
+6. ✅ **Use secret management** - Consider services like:
+   - AWS Secrets Manager
+   - HashiCorp Vault
+   - Platform-specific secret storage (Render, Railway, Heroku)
+
+---
+
 ## 📦 Automated Backup Schedule
 
 ### Overview
