@@ -466,10 +466,112 @@ io.on("connection", (socket) => {
     });
     challengesToDelete.forEach(key => challenges.delete(key));
     
-    // TODO: handle disconnect during match
+    // Handle disconnect during match
+    const activeMatch = findMatchBySocketId(socket.id);
+    if (activeMatch) {
+      handleMatchDisconnection(activeMatch, socket.id, user.id);
+    }
+    
     console.log("disconnected", user.username || user.email);
   });
 });
+
+/**
+ * Find the active match containing a player with the given socket ID
+ */
+function findMatchBySocketId(socketId: string): any | null {
+  for (const match of matches.values()) {
+    if (match.players.some((p: any) => p.socketId === socketId)) {
+      return match;
+    }
+  }
+  return null;
+}
+
+/**
+ * Handle player disconnection during an active match
+ * Marks disconnected player as DNF, awards win to remaining player, updates ELO
+ */
+async function handleMatchDisconnection(match: any, disconnectedSocketId: string, disconnectedUserId: number) {
+  const disconnectedPlayer = match.players.find((p: any) => p.socketId === disconnectedSocketId);
+  const remainingPlayer = match.players.find((p: any) => p.socketId !== disconnectedSocketId);
+  
+  if (!disconnectedPlayer || !remainingPlayer) {
+    // Invalid match state, just clean up
+    matches.delete(match.id);
+    return;
+  }
+  
+  // Store match in database with DNF status
+  const dbMatch = await prisma.match.create({ 
+    data: { 
+      duration: Date.now() - match.startedAt 
+    } 
+  });
+  
+  // Calculate ELO changes: remaining player wins, disconnected player loses
+  const outcomeRemaining = 1; // Remaining player wins
+  const deltaRemaining = calculateEloChange(remainingPlayer.elo, disconnectedPlayer.elo, outcomeRemaining);
+  const deltaDisconnected = -deltaRemaining;
+  
+  // Create MatchPlayer records
+  await prisma.matchPlayer.create({
+    data: { 
+      matchId: dbMatch.id, 
+      userId: remainingPlayer.userId, 
+      finishPosition: 1, 
+      timeMs: null, 
+      deltaElo: deltaRemaining 
+    },
+  });
+  
+  await prisma.matchPlayer.create({
+    data: { 
+      matchId: dbMatch.id, 
+      userId: disconnectedPlayer.userId, 
+      finishPosition: null, // null = DNF (Did Not Finish)
+      timeMs: null, 
+      deltaElo: deltaDisconnected 
+    },
+  });
+  
+  // Update ELO ratings
+  await prisma.user.update({ 
+    where: { id: remainingPlayer.userId }, 
+    data: { 
+      elo: { increment: deltaRemaining },
+      matchesPlayed: { increment: 1 },
+      wins: { increment: 1 }
+    } 
+  });
+  
+  await prisma.user.update({ 
+    where: { id: disconnectedPlayer.userId }, 
+    data: { 
+      elo: { increment: deltaDisconnected },
+      matchesPlayed: { increment: 1 }
+    } 
+  });
+  
+  // Notify remaining player about the disconnection
+  io.to(remainingPlayer.socketId).emit("match_end", {
+    matchId: match.id,
+    result: [
+      { userId: remainingPlayer.userId, meters: remainingPlayer.meters },
+      { userId: disconnectedPlayer.userId, meters: disconnectedPlayer.meters, dnf: true }
+    ],
+    eloDeltas: [
+      { userId: remainingPlayer.userId, delta: deltaRemaining },
+      { userId: disconnectedPlayer.userId, delta: deltaDisconnected }
+    ],
+    reason: "opponent_disconnected"
+  });
+  
+  // Clean up match
+  matches.delete(match.id);
+  
+  console.log(`Match ${match.id} ended due to disconnection: ${disconnectedPlayer.username || disconnectedPlayer.email} disconnected`);
+}
 
 function tryPair() {
   if (queue.length >= 2) {
@@ -513,8 +615,30 @@ async function endMatch(match: any, finishedPlayers: any[]) {
     const mp2 = await prisma.matchPlayer.create({
       data: { matchId: dbMatch.id, userId: pB.userId, finishPosition: outcomeA === 1 ? 2 : 1, timeMs: null, deltaElo: deltaB },
     });
-    await prisma.user.update({ where: { id: pA.userId }, data: { elo: { increment: deltaA } } });
-    await prisma.user.update({ where: { id: pB.userId }, data: { elo: { increment: deltaB } } });
+    // Update ELO ratings and match statistics
+    const updateA: any = { 
+      elo: { increment: deltaA },
+      matchesPlayed: { increment: 1 }
+    };
+    if (outcomeA === 1) {
+      updateA.wins = { increment: 1 };
+    }
+    await prisma.user.update({ 
+      where: { id: pA.userId }, 
+      data: updateA
+    });
+    
+    const updateB: any = { 
+      elo: { increment: deltaB },
+      matchesPlayed: { increment: 1 }
+    };
+    if (outcomeA === 0) {
+      updateB.wins = { increment: 1 };
+    }
+    await prisma.user.update({ 
+      where: { id: pB.userId }, 
+      data: updateB
+    });
 
     // notify players
     match.players.forEach((p: any) => {
