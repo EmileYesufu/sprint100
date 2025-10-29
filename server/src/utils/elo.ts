@@ -70,3 +70,76 @@ export function calculateEloChange(ratingA: number, ratingB: number, scoreA: num
   const deltaA = newA - ratingA;
   return deltaA;
 }
+
+/**
+ * Player interface for multiplayer ELO calculation
+ */
+export interface PlayerForElo {
+  id: number;
+  elo: number;
+}
+
+/**
+ * Result interface for multiplayer ELO calculation
+ */
+export interface EloChangeResult {
+  userId: number;
+  delta: number;
+  newElo: number;
+}
+
+/**
+ * Calculate ELO changes for N-player races (2-8 players)
+ * 
+ * Uses position-based scoring with scaled K-factor:
+ * - K-factor scales as: 32 / log2(playerCount + 1)
+ * - Expected score computed against average ELO of all opponents
+ * - Actual score based on position: 1 - (position / (playerCount - 1))
+ * 
+ * @param players - Array of players sorted by finish position (1st, 2nd, 3rd, etc.)
+ *                  Must have `id` and `elo` properties
+ * @returns Array of ELO deltas for each player
+ */
+export function calculateEloChanges(players: PlayerForElo[]): EloChangeResult[] {
+  if (players.length < 2) {
+    return [];
+  }
+
+  // Calculate scaled K-factor based on player count
+  // Formula: K = 32 / log2(playerCount + 1)
+  const kFactor = 32 / Math.log2(players.length + 1);
+
+  // Calculate average ELO of all players
+  const avgElo = players.reduce((sum, p) => sum + p.elo, 0) / players.length;
+
+  const results: EloChangeResult[] = [];
+
+  for (let i = 0; i < players.length; i++) {
+    const player = players[i];
+    const position = i; // 0-based position (0 = 1st, 1 = 2nd, etc.)
+
+    // Calculate expected score against average opponent ELO
+    // Expected = 1 / (1 + 10^((avgElo - playerElo) / 400))
+    const expected = 1 / (1 + Math.pow(10, (avgElo - player.elo) / 400));
+
+    // Calculate actual score based on position
+    // Formula: actual = 1 - position / (playerCount - 1)
+    // 1st place (i=0): actual = 1 - 0/(N-1) = 1.0
+    // 2nd place (i=1): actual = 1 - 1/(N-1)
+    // Last place (i=N-1): actual = 1 - (N-1)/(N-1) = 0.0
+    const actual = players.length === 1 
+      ? 1 
+      : 1 - position / (players.length - 1);
+
+    // Calculate ELO delta: delta = K * (actual - expected)
+    const delta = Math.round(kFactor * (actual - expected));
+
+    results.push({
+      userId: player.id,
+      delta,
+      newElo: player.elo + delta,
+    });
+  }
+
+  return results;
+}

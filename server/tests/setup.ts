@@ -25,9 +25,23 @@ afterAll(async () => {
 // Clean up database between tests
 beforeEach(async () => {
   // Clean up test data in reverse order of dependencies
-  await prisma.matchPlayer.deleteMany();
-  await prisma.match.deleteMany();
-  await prisma.user.deleteMany();
+  // Gracefully handle missing tables (for tests that don't require database)
+  try {
+    await prisma.matchPlayer.deleteMany();
+  } catch (error: any) {
+    // Ignore errors if table doesn't exist (for pure unit tests)
+    if (!error.message?.includes('does not exist')) throw error;
+  }
+  try {
+    await prisma.match.deleteMany();
+  } catch (error: any) {
+    if (!error.message?.includes('does not exist')) throw error;
+  }
+  try {
+    await prisma.user.deleteMany();
+  } catch (error: any) {
+    if (!error.message?.includes('does not exist')) throw error;
+  }
 });
 
 // Increase timeout for database operations
