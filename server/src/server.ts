@@ -170,6 +170,8 @@ app.get("/api/users/:userId/matches", authenticateToken, async (req, res) => {
   }
 
   try {
+    const limit = parseInt(req.query.limit as string) || 20;
+    
     const matches = await prisma.match.findMany({
       where: {
         players: {
@@ -180,10 +182,12 @@ app.get("/api/users/:userId/matches", authenticateToken, async (req, res) => {
       },
       include: {
         players: {
-          include: {
+          select: {
+            userId: true,
+            finishPosition: true,
+            deltaElo: true,
             user: {
               select: {
-                id: true,
                 username: true,
                 elo: true,
               },
@@ -194,10 +198,34 @@ app.get("/api/users/:userId/matches", authenticateToken, async (req, res) => {
       orderBy: {
         createdAt: 'desc',
       },
-      take: 20, // Last 20 matches
+      take: limit,
     });
-    res.json(matches);
+
+    // Format response for each match
+    const formattedMatches = matches.map((match) => {
+      // Find the requesting user's player data
+      const userPlayer = match.players.find((p) => p.userId === userId);
+      
+      // Get opponents (all other players)
+      const opponents = match.players
+        .filter((p) => p.userId !== userId)
+        .map((p) => ({
+          username: p.user.username || 'Unknown',
+          elo: p.user.elo,
+        }));
+
+      return {
+        matchId: match.id,
+        timestamp: match.createdAt.toISOString(),
+        placement: userPlayer?.finishPosition || null,
+        eloDelta: userPlayer?.deltaElo || null,
+        opponents: opponents,
+      };
+    });
+
+    res.json(formattedMatches);
   } catch (error) {
+    console.error("Error fetching user matches:", error);
     res.status(500).json({ error: "failed to fetch user matches" });
   }
 });
