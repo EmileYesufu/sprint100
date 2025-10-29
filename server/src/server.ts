@@ -9,6 +9,18 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { PrismaClient } from "@prisma/client";
 import { calculateEloChange } from "./utils/elo";
+import { calculateMultiplayerElo } from "./utils/multiplayerElo";
+import {
+  createRace,
+  getRace,
+  updatePlayerProgress,
+  getRaceProgress,
+  startRace,
+  startCountdown,
+  finishRace,
+  deleteRace,
+  computeFinishThreshold,
+} from "./services/raceService";
 
 // Extend Express Request type to include user property
 declare global {
@@ -380,32 +392,19 @@ io.on("connection", (socket) => {
       return;
     }
     
-    // Create match (same as queue pairing)
+    // Create match using race service
     const challenger = await prisma.user.findUnique({ where: { id: payload.fromId } });
     if (!challenger) return;
     
-    const id = matchIdCounter++;
-    const match = {
-      id,
-      players: [
-        { socketId: challengerSocketId, userId: challenger.id, email: challenger.email, username: challenger.username, elo: challenger.elo, steps: 0, meters: 0, lastSide: null, timeMs: null },
-        { socketId: socket.id, userId: user.id, email: user.email, username: user.username, elo: user.elo, steps: 0, meters: 0, lastSide: null, timeMs: null },
-      ],
-      startedAt: Date.now(),
-    };
-    matches.set(id, match);
+    const matchPlayers = [
+      { socketId: challengerSocketId, userId: challenger.id, email: challenger.email, username: challenger.username, elo: challenger.elo },
+      { socketId: socket.id, userId: user.id, email: user.email, username: user.username, elo: user.elo },
+    ];
+    
+    createMatchWithPlayers(matchPlayers);
     
     // Remove challenge
     challenges.delete(challengeKey);
-    
-    // Notify both players match started
-    match.players.forEach((p: any) => {
-      const opponent = match.players.find((x: any) => x.socketId !== p.socketId);
-      io.to(p.socketId).emit("match_start", { 
-        matchId: id, 
-        opponent: opponent?.username || opponent?.email || "Unknown"
-      });
-    });
   });
 
   // Decline challenge
@@ -423,7 +422,79 @@ io.on("connection", (socket) => {
     }
   });
 
+  // Join race room (called when player enters race screen)
+  socket.on("join_race", (payload: { matchId: number }) => {
+    const race = getRace(payload.matchId);
+    if (!race) {
+      socket.emit("race_error", { error: "Race not found" });
+      return;
+    }
+
+    const player = race.players.find(p => p.socketId === socket.id);
+    if (!player) {
+      socket.emit("race_error", { error: "Not a participant in this race" });
+      return;
+    }
+
+    // Join the race room
+    socket.join(race.roomName);
+    
+    // If countdown hasn't started, start it
+    if (!race.countdownStart) {
+      const countdownStartTime = Date.now();
+      startCountdown(payload.matchId, countdownStartTime);
+      
+      // Broadcast countdown start to all players in room
+      io.to(race.roomName).emit("countdown_start", { 
+        matchId: payload.matchId,
+        countdownStart: countdownStartTime,
+      });
+
+      // Start race after countdown (3-2-1-GO = ~3 seconds)
+      setTimeout(() => {
+        if (startRace(payload.matchId)) {
+          io.to(race.roomName).emit("race_start", { matchId: payload.matchId });
+        }
+      }, 3000);
+    }
+
+    socket.emit("race_joined", { matchId: payload.matchId, roomName: race.roomName });
+  });
+
+  // Leave race room
+  socket.on("leave_race", (payload: { matchId: number }) => {
+    const race = getRace(payload.matchId);
+    if (race) {
+      socket.leave(race.roomName);
+    }
+  });
+
   socket.on("tap", (payload: { matchId: number; side: "left" | "right"; ts: number }) => {
+    // Try race service first (multiplayer)
+    const raceResult = updatePlayerProgress(payload.matchId, socket.id, payload.side);
+    
+    if (raceResult) {
+      // Using race service (multiplayer)
+      const { race, shouldEnd, finishedPlayers } = raceResult;
+      
+      // Broadcast progress update to all players in the room
+      const progress = getRaceProgress(payload.matchId);
+      if (progress) {
+        io.to(race.roomName).emit("race_update", {
+          matchId: payload.matchId,
+          players: progress.players,
+        });
+      }
+
+      // Check if race should end based on threshold
+      if (shouldEnd) {
+        const finishedRace = finishRace(payload.matchId);
+        if (finishedRace) {
+          endMatch(finishedRace, finishedPlayers);
+        }
+      }
+      return;
+    }
     const m = matches.get(payload.matchId);
     if (!m) return;
     const player = m.players.find((p: any) => p.socketId === socket.id);
@@ -573,34 +644,175 @@ async function handleMatchDisconnection(match: any, disconnectedSocketId: string
   console.log(`Match ${match.id} ended due to disconnection: ${disconnectedPlayer.username || disconnectedPlayer.email} disconnected`);
 }
 
+/**
+ * Create a match with specified number of players (2-8)
+ */
+function createMatchWithPlayers(players: Array<{ socketId: string; userId: number; email: string; username: string; elo: number }>): void {
+  if (players.length < 2 || players.length > 8) {
+    console.error(`Invalid player count: ${players.length}. Must be between 2 and 8.`);
+    return;
+  }
+
+  const id = matchIdCounter++;
+  
+  // Create race using race service
+  const race = createRace(id, players);
+  
+  // Store in matches map for backward compatibility
+  matches.set(id, {
+    id,
+    players: race.players.map(p => ({
+      socketId: p.socketId,
+      userId: p.userId,
+      email: p.email,
+      username: p.username,
+      elo: p.elo,
+      steps: p.steps,
+      meters: p.meters,
+      lastSide: p.lastSide,
+      timeMs: p.timeMs,
+    })),
+    startedAt: race.startedAt,
+  });
+
+  // Notify all players match started
+  race.players.forEach((p) => {
+    const opponents = race.players
+      .filter(x => x.socketId !== p.socketId)
+      .map(x => x.username || x.email || "Unknown");
+    
+    io.to(p.socketId).emit("match_start", { 
+      matchId: id, 
+      opponent: opponents.length === 1 ? opponents[0] : opponents.join(", "),
+      playerCount: players.length,
+      roomName: race.roomName,
+    });
+  });
+}
+
+/**
+ * Try to pair players from queue (2-player default)
+ */
 function tryPair() {
   if (queue.length >= 2) {
     const [a, b] = queue.splice(0, 2);
-    const id = matchIdCounter++;
-    const match = {
-      id,
-      players: [
-        { socketId: a.socketId, userId: a.userId, email: a.email, elo: a.elo, steps: 0, meters: 0, lastSide: null, timeMs: null },
-        { socketId: b.socketId, userId: b.userId, email: b.email, elo: b.elo, steps: 0, meters: 0, lastSide: null, timeMs: null },
-      ],
-      startedAt: Date.now(),
-    };
-    matches.set(id, match);
-    // notify both players match started
-    match.players.forEach((p: any) => {
-      const opp = match.players.find((x: any) => x.socketId !== p.socketId);
-      io.to(p.socketId).emit("match_start", { matchId: id, opponent: opp?.email || "Unknown" });
-    });
+    createMatchWithPlayers([a, b]);
   }
 }
 
-async function endMatch(match: any, finishedPlayers: any[]) {
-  // compute finishing order and times
-  // For simplicity: whoever reached >=100 first is winner (we used meters only)
+/**
+ * Try to create multi-player race (4 or 8 players)
+ */
+function tryMultiplayerRace(playerCount: 4 | 8) {
+  if (queue.length >= playerCount) {
+    const players = queue.splice(0, playerCount);
+    createMatchWithPlayers(players);
+  }
+}
+
+async function endMatch(matchOrRace: any, finishedPlayers: any[]) {
+  // Get race state from race service (if using race service)
+  const raceState = getRace(matchOrRace.id);
+  
+  if (raceState) {
+    // Using race service (multiplayer)
+    const duration = Date.now() - raceState.startedAt;
+    
+    // Store match in database
+    const dbMatch = await prisma.match.create({ 
+      data: { 
+        duration 
+      } 
+    });
+
+    // Prepare players with finish positions for ELO calculation
+    const playerResults = raceState.players.map(p => ({
+      userId: p.userId,
+      finishPosition: p.finishPosition || raceState.players.length,
+      elo: p.elo,
+    }));
+
+    // Calculate ELO changes (supports 2-8 players)
+    const eloDeltas = calculateMultiplayerElo(playerResults);
+
+    // Create MatchPlayer records and update ELO
+    const updatePromises = [];
+    
+    for (const player of raceState.players) {
+      const eloDelta = eloDeltas.find(e => e.userId === player.userId);
+      if (!eloDelta) continue;
+
+      // Create MatchPlayer record
+      updatePromises.push(
+        prisma.matchPlayer.create({
+          data: {
+            matchId: dbMatch.id,
+            userId: player.userId,
+            finishPosition: player.finishPosition,
+            timeMs: player.timeMs,
+            deltaElo: eloDelta.delta,
+          },
+        })
+      );
+
+      // Update user ELO and statistics
+      const updateData: any = {
+        elo: { increment: eloDelta.delta },
+        matchesPlayed: { increment: 1 },
+      };
+      
+      // Increment wins if player finished in top position
+      if (player.finishPosition === 1) {
+        updateData.wins = { increment: 1 };
+      }
+
+      updatePromises.push(
+        prisma.user.update({
+          where: { id: player.userId },
+          data: updateData,
+        })
+      );
+    }
+
+    await Promise.all(updatePromises);
+
+    // Prepare race results for clients
+    const raceResults = raceState.players.map(p => ({
+      userId: p.userId,
+      meters: p.meters,
+      finishPosition: p.finishPosition,
+      timeMs: p.timeMs,
+    }));
+
+    // Notify all players in the race room
+    io.to(raceState.roomName).emit("race_complete", {
+      matchId: matchOrRace.id,
+      result: raceResults,
+      eloDeltas: eloDeltas.map(e => ({ userId: e.userId, delta: e.delta })),
+      threshold: computeFinishThreshold(raceState.players.length),
+    });
+
+    // Legacy match_end event for backward compatibility
+    io.to(raceState.roomName).emit("match_end", {
+      matchId: matchOrRace.id,
+      result: raceResults,
+      eloDeltas: eloDeltas.map(e => ({ userId: e.userId, delta: e.delta })),
+    });
+
+    // Cleanup
+    deleteRace(matchOrRace.id);
+    matches.delete(matchOrRace.id);
+
+    console.log(`Race ${matchOrRace.id} completed with ${raceState.players.length} players`);
+    return;
+  }
+
+  // Legacy 2-player match logic (backward compatibility)
+  const match = matchOrRace;
   const ordered = match.players.slice().sort((a: any, b: any) => b.meters - a.meters);
   // store match
   const dbMatch = await prisma.match.create({ data: { duration: Date.now() - match.startedAt } });
-  // compute Elo for two players only (this skeleton assumes 2-player races)
+  // compute Elo for two players only
   if (match.players.length === 2) {
     const pA = match.players[0];
     const pB = match.players[1];
