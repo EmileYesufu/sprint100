@@ -38,30 +38,33 @@ export function getServerUrl(): string {
     console.log(`📡 Using API URL from app.json: ${expoApiUrl}`);
     return expoApiUrl;
   }
-  
+
   // 2. Check EXPO_PUBLIC_API_URL environment variable
   if (process.env.EXPO_PUBLIC_API_URL) {
     console.log(`📡 Using API URL from .env: ${process.env.EXPO_PUBLIC_API_URL}`);
     return process.env.EXPO_PUBLIC_API_URL;
   }
-  
+
   // 3. Check if we're in test mode
-  if (process.env.APP_ENV === "test") {
-    const testUrl = process.env.TEST_SERVER_URL || process.env.SERVER_URL || DEFAULT_SERVER_URL;
+  if (process.env.APP_ENV === 'test') {
+    const testUrl =
+      process.env.TEST_SERVER_URL || process.env.SERVER_URL || DEFAULT_SERVER_URL;
     console.log(`📡 Using test API URL: ${testUrl}`);
     return testUrl;
   }
-  
+
   // 4. Try SERVER_URL from .env
   if (process.env.SERVER_URL) {
     console.log(`📡 Using API URL from SERVER_URL: ${process.env.SERVER_URL}`);
     return process.env.SERVER_URL;
   }
-  
+
   // 5. Fallback to default
   console.log(`📡 Using default API URL: ${DEFAULT_SERVER_URL}`);
-  console.warn("⚠️  WARNING: Using default IP. For remote testing, set EXPO_PUBLIC_API_URL in .env");
-  
+  console.warn(
+    '⚠️  WARNING: Using default IP. For remote testing, set EXPO_PUBLIC_API_URL in .env'
+  );
+
   return DEFAULT_SERVER_URL;
 }
 

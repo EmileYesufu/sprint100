@@ -23,6 +23,6 @@ export function formatElo(elo: number): string {
  */
 export function formatDate(dateString: string): string {
   const date = new Date(dateString);
-  return date.toLocaleDateString() + " " + date.toLocaleTimeString();
+  return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
 }
 
