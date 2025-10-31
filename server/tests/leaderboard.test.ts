@@ -69,13 +69,15 @@ describe('Leaderboard API', () => {
         .set('Authorization', `Bearer ${authToken}`)
         .expect(200);
 
-      expect(Array.isArray(response.body)).toBe(true);
-      expect(response.body).toHaveLength(3);
-      
+      expect(response.body.success).toBe(true);
+      expect(Array.isArray(response.body.data)).toBe(true);
+      expect(response.body.data).toHaveLength(3);
+
       // Check ordering (highest ELO first)
-      expect(response.body[0].elo).toBe(1600);
-      expect(response.body[1].elo).toBe(1500);
-      expect(response.body[2].elo).toBe(1400);
+      expect(response.body.data[0].elo).toBe(1600);
+      expect(response.body.data[1].elo).toBe(1500);
+      expect(response.body.data[2].elo).toBe(1400);
+      expect(response.body.data.map((entry: any) => entry.rank)).toEqual([1, 2, 3]);
     });
 
     it('should require authentication', async () => {
@@ -90,12 +92,13 @@ describe('Leaderboard API', () => {
         .set('Authorization', `Bearer ${authToken}`)
         .expect(200);
 
-      expect(response.body[0]).toHaveProperty('id');
-      expect(response.body[0]).toHaveProperty('username');
-      expect(response.body[0]).toHaveProperty('elo');
-      expect(response.body[0]).toHaveProperty('matchesPlayed');
-      expect(response.body[0]).toHaveProperty('wins');
-      expect(response.body[0]).not.toHaveProperty('password');
+      expect(response.body.success).toBe(true);
+      expect(response.body.data[0]).toHaveProperty('rank', 1);
+      expect(response.body.data[0]).toHaveProperty('username');
+      expect(response.body.data[0]).toHaveProperty('elo');
+      expect(response.body.data[0]).toHaveProperty('matchesPlayed');
+      expect(response.body.data[0]).toHaveProperty('wins');
+      expect(response.body.data[0]).not.toHaveProperty('password');
     });
 
     it('should return empty leaderboard when no users exist', async () => {
@@ -107,7 +110,8 @@ describe('Leaderboard API', () => {
         .set('Authorization', `Bearer ${authToken}`)
         .expect(200);
 
-      expect(response.body).toHaveLength(0);
+      expect(response.body.success).toBe(true);
+      expect(response.body.data).toHaveLength(0);
     });
 
     it('should limit results to top 50 players', async () => {
@@ -131,7 +135,8 @@ describe('Leaderboard API', () => {
         .set('Authorization', `Bearer ${authToken}`)
         .expect(200);
 
-      expect(response.body).toHaveLength(50);
+      expect(response.body.success).toBe(true);
+      expect(response.body.data).toHaveLength(50);
     });
   });
 });

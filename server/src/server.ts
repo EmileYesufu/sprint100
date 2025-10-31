@@ -145,18 +145,24 @@ app.get("/api/leaderboard", authenticateToken, async (req, res) => {
   try {
     const users = await prisma.user.findMany({
       select: {
-        id: true,
         username: true,
         elo: true,
         matchesPlayed: true,
         wins: true,
       },
-      orderBy: {
-        elo: 'desc',
-      },
-      take: 50, // Top 50 players
+      orderBy: { elo: 'desc' },
+      take: 50,
     });
-    res.json(users);
+
+    const leaderboard = users.map((user, index) => ({
+      rank: index + 1,
+      username: user.username,
+      elo: user.elo,
+      matchesPlayed: user.matchesPlayed ?? 0,
+      wins: user.wins ?? 0,
+    }));
+
+    res.status(200).json({ success: true, data: leaderboard });
   } catch (error) {
     res.status(500).json({ error: "failed to fetch leaderboard" });
   }
