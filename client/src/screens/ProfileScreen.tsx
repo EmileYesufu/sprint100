@@ -34,8 +34,7 @@ export default function ProfileScreen() {
 
     setIsLoading(true);
     try {
-      // TODO: Replace with actual endpoint when server implements it
-      const response = await fetch(`${getServerUrl()}/api/matches?userId=${user.id}`, {
+      const response = await fetch(`${getServerUrl()}/api/users/${user.id}/matches`, {
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
@@ -43,12 +42,31 @@ export default function ProfileScreen() {
       });
 
       if (response.ok) {
-        const data = await response.json();
-        setMatchHistory(data.matches || []);
+        const matches = await response.json();
+        // Transform server response to MatchHistoryEntry format
+        const formattedMatches: MatchHistoryEntry[] = matches.map((match: any) => {
+          // Determine if user won (placement 1 means first place)
+          const won = match.placement === 1;
+          // Get first opponent for display (multiplayer races have multiple opponents)
+          const opponent = match.opponents && match.opponents.length > 0 
+            ? match.opponents[0] 
+            : { username: 'Unknown', elo: 0 };
+          
+          return {
+            matchId: match.matchId,
+            opponentEmail: opponent.username || opponent.email || 'Unknown',
+            won: won,
+            eloDelta: match.eloDelta || 0,
+            finalMeters: 100, // Standard race distance (server doesn't return this)
+            createdAt: match.timestamp || new Date().toISOString(),
+          };
+        });
+        setMatchHistory(formattedMatches);
+      } else {
+        console.error("Failed to load match history:", response.status, response.statusText);
       }
     } catch (error) {
       console.error("Error loading match history:", error);
-      // Silently fail for now as this endpoint may not exist yet
     } finally {
       setIsLoading(false);
     }
