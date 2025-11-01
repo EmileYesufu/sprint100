@@ -4,13 +4,22 @@ This guide covers deployment procedures, automated backups, and production opera
 
 ---
 
-## 🔐 Production Environment Variables
+## 🔐 Environment Configuration
 
 ### Overview
 
-The application uses environment variables for configuration. Production environment files (`.env.production`) are automatically loaded when `NODE_ENV=production` is set.
+The application uses environment variables for configuration. Environment-specific files are automatically loaded:
+- **Production**: `.env.production` loaded when `NODE_ENV=production`
+- **Testing**: `.env.test` loaded when `NODE_ENV=testing` or `NODE_ENV=test`
+- **Development**: `.env` loaded for other environments
 
-⚠️ **Important**: Never commit actual secrets or credentials to git. `.env.production` files are gitignored by default.
+⚠️ **Important**: Never commit actual secrets or credentials to git. All `.env.*` files are gitignored by default.
+
+✅ **Status**: Environment files have been created from templates:
+- `server/.env.production` - Production server configuration
+- `server/.env.test` - Test server configuration (high rate limits for automated testing)
+- `client/.env.production` - Production client configuration
+- `client/.env.test` - Test client configuration
 
 ---
 
@@ -65,21 +74,30 @@ node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 
 ### Client Environment Variables
 
-**Location**: `client/.env.production`
+**Production Location**: `client/.env.production`
 
-**Required Variables:**
+**Production Required Variables:**
 
 ```bash
 EXPO_PUBLIC_API_URL=https://api.sprint100.app
 APP_ENV=production
 ```
 
+**Test Location**: `client/.env.test`
+
+**Test Required Variables:**
+
+```bash
+EXPO_PUBLIC_API_URL=https://staging.sprint100.app
+APP_ENV=testing
+```
+
 **Configuration Details:**
 
 | Variable | Description | Production Requirement |
 |----------|-------------|----------------------|
-| `EXPO_PUBLIC_API_URL` | API server URL | Required, must use HTTPS |
-| `APP_ENV` | App environment mode | Must be `production` |
+| `EXPO_PUBLIC_API_URL` | API server URL | Required, must use HTTPS for production |
+| `APP_ENV` | App environment mode | Must be `production` for production, `testing` for tests |
 
 ---
 
@@ -113,19 +131,34 @@ The server automatically validates environment variables on startup:
 
 ### Setting Up Production Environment
 
-**1. Create Server `.env.production`:**
+✅ **Environment files have been created** from templates:
+- `server/.env.production` - Server production configuration
+- `server/.env.test` - Server test configuration  
+- `client/.env.production` - Client production configuration
+- `client/.env.test` - Client test configuration
+
+⚠️ **Important**: These files are gitignored. Before deployment, you **must replace placeholder values** with actual production values:
+
+**1. Update Server `.env.production`:**
 
 ```bash
 cd server
-cp .env.example .env.production  # If example exists, or create manually
 nano .env.production  # Edit with your production values
+
+# Required updates:
+# - DATABASE_URL: Replace with actual PostgreSQL connection string
+# - JWT_SECRET: Replace with secure random token (generate with: openssl rand -hex 32)
+# - ALLOWED_ORIGINS: Update with actual production domains
 ```
 
-**2. Create Client `.env.production`:**
+**2. Update Client `.env.production`:**
 
 ```bash
 cd client
-nano .env.production  # Create and add production values
+nano .env.production  # Edit with your production API URL
+
+# Required updates:
+# - EXPO_PUBLIC_API_URL: Replace with actual production API server URL (must use HTTPS)
 ```
 
 **3. Verify Configuration:**
@@ -144,6 +177,23 @@ NODE_ENV=production node dist/server.js
 #    ALLOWED_ORIGINS: https://sprint100.app
 #    DATABASE_URL: External DB
 #    ...
+```
+
+**4. Test Environment Setup:**
+
+```bash
+# Server test configuration (high rate limits for automated testing)
+cd server
+# .env.test is already configured with:
+# - NODE_ENV=testing
+# - RATE_LIMIT_MAX=5000 (for automated tests)
+# - ALLOWED_ORIGINS=* (relaxed for testing)
+
+# Client test configuration
+cd client
+# .env.test is already configured with:
+# - APP_ENV=testing
+# - EXPO_PUBLIC_API_URL=https://staging.sprint100.app
 ```
 
 ---
