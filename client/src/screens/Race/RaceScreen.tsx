@@ -17,8 +17,9 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "@/hooks/useAuth";
+import { useElo } from "@/hooks/useElo";
 import { useSocket } from "@/hooks/useSocket";
-import { metersToPct } from "@/utils/formatting";
+import { metersToPct, formatElo } from "@/utils/formatting";
 import { computeFinishThreshold, hasReachedThreshold } from "@/utils/finishThreshold";
 import { computeFinalPlacings, type RacerProgress } from "@/utils/computeFinalPlacings";
 import { getPositionSuffix, getMedalForPosition, getAvatarInitials, getColorFromString } from "@/utils/uiHelpers";
@@ -42,6 +43,7 @@ interface PlayerDisplay {
 export default function RaceScreen({ route, navigation }: Props) {
   const { matchId, opponent } = route.params;
   const { user } = useAuth();
+  const { refreshElo } = useElo();
   const { socket } = useSocket();
   const reduceMotion = useReducedMotion();
 
@@ -231,6 +233,9 @@ export default function RaceScreen({ route, navigation }: Props) {
       setServerResultReceived(true);
       setRaceFinished(true);
       setResult(matchResult);
+
+      // Refresh ELO after race completes
+      refreshElo();
 
       // Clear elapsed time interval
       if (elapsedTimeInterval.current) {
@@ -517,15 +522,28 @@ export default function RaceScreen({ route, navigation }: Props) {
                     <Text style={styles.statValue}>{playerTime}s</Text>
                   </View>
                   
-                  {/* Personal Best section - matching TrainingRaceScreen design */}
-                  {/* Note: Online races don't track personal bests, but we show empty space for visual parity */}
+                  {/* ELO Change section */}
                   <View style={styles.statItem}>
-                    {/* Could add ELO delta here instead for online races */}
-                    {medal && (
+                    {playerResult.eloDelta !== undefined && playerResult.newElo !== undefined ? (
+                      <View style={styles.eloChangeContainer}>
+                        <Text style={styles.eloChangeLabel}>ELO</Text>
+                        <View style={styles.eloChangeValue}>
+                          <Text
+                            style={[
+                              styles.eloDelta,
+                              playerResult.eloDelta >= 0 ? styles.eloPositive : styles.eloNegative,
+                            ]}
+                          >
+                            {playerResult.eloDelta >= 0 ? "+" : ""}{playerResult.eloDelta}
+                          </Text>
+                          <Text style={styles.eloNew}>{formatElo(playerResult.newElo)}</Text>
+                        </View>
+                      </View>
+                    ) : medal ? (
                       <View style={styles.medalContainer}>
                         <Text style={styles.medalIcon}>{medal}</Text>
                       </View>
-                    )}
+                    ) : null}
                   </View>
                 </View>
                 
@@ -842,6 +860,32 @@ const styles = StyleSheet.create({
   },
   medalIcon: {
     fontSize: 32,
+  },
+  eloChangeContainer: {
+    alignItems: "center",
+  },
+  eloChangeLabel: {
+    fontSize: typography.bodySmall.fontSize,
+    color: colors.text,
+    marginBottom: spacing.sp1,
+  },
+  eloChangeValue: {
+    alignItems: "center",
+  },
+  eloDelta: {
+    fontSize: typography.h4.fontSize,
+    fontWeight: typography.h4.fontWeight,
+  },
+  eloPositive: {
+    color: "#4ADE80", // Green for positive
+  },
+  eloNegative: {
+    color: "#F87171", // Red for negative
+  },
+  eloNew: {
+    fontSize: typography.body.fontSize,
+    color: colors.textSecondary,
+    marginTop: spacing.sp1,
   },
   resultCardButtons: {
     flexDirection: "row",

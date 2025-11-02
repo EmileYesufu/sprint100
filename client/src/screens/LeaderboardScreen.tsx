@@ -17,6 +17,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { useAuth } from "@/hooks/useAuth";
+import { useElo } from "@/hooks/useElo";
 import { getServerUrl } from "@/config";
 import { formatElo } from "@/utils/formatting";
 import { getAvatarInitials, getColorFromString } from "@/utils/uiHelpers";
@@ -26,6 +27,7 @@ import { useReducedMotion } from "@/hooks/useReducedMotion";
 
 export default function LeaderboardScreen() {
   const { token, user } = useAuth();
+  const { elo } = useElo();
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -35,6 +37,14 @@ export default function LeaderboardScreen() {
   useEffect(() => {
     loadLeaderboard();
   }, []);
+
+  // Refresh leaderboard when user ELO changes (e.g., after a race)
+  useEffect(() => {
+    if (elo !== null) {
+      loadLeaderboard();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [elo]);
 
   // Fade-in animation on mount (skip if reduce motion enabled)
   useEffect(() => {

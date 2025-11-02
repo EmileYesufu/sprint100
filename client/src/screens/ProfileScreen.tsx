@@ -14,7 +14,9 @@ import {
   Animated,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useFocusEffect } from "@react-navigation/native";
 import { useAuth } from "@/hooks/useAuth";
+import { useElo } from "@/hooks/useElo";
 import { getServerUrl } from "@/config";
 import { formatElo, formatDate } from "@/utils/formatting";
 import { getPositionSuffix, getMedalForPosition, getAvatarInitials, getColorFromString } from "@/utils/uiHelpers";
@@ -24,6 +26,7 @@ import { useReducedMotion } from "@/hooks/useReducedMotion";
 
 export default function ProfileScreen() {
   const { user, token, logout } = useAuth();
+  const { elo, refreshElo } = useElo();
   const [matchHistory, setMatchHistory] = useState<MatchHistoryEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const fadeAnim = React.useRef(new Animated.Value(0)).current;
@@ -34,6 +37,13 @@ export default function ProfileScreen() {
       loadMatchHistory();
     }
   }, [user]);
+
+  // Refresh ELO when screen comes into focus (e.g., returning from a race)
+  useFocusEffect(
+    React.useCallback(() => {
+      refreshElo();
+    }, [refreshElo])
+  );
 
   // Fade-in animation on mount (skip if reduce motion enabled)
   useEffect(() => {
@@ -139,11 +149,11 @@ export default function ProfileScreen() {
         {/* ELO Rating */}
         <Text 
           style={styles.eloRating}
-          accessibilityLabel={`ELO rating, ${formatElo(user.elo).replace(/,/g, ' ')}`}
+          accessibilityLabel={`ELO rating, ${formatElo(elo).replace(/,/g, ' ')}`}
           accessibilityRole="text"
           allowFontScaling={accessibility.allowFontScaling}
         >
-          ELO {formatElo(user.elo)}
+          ELO {formatElo(elo)}
         </Text>
       </Animated.View>
 

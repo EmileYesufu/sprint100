@@ -168,6 +168,37 @@ app.get("/api/leaderboard", authenticateToken, async (req, res) => {
   }
 });
 
+// Get user data by ID (protected)
+app.get("/api/users/:userId", authenticateToken, async (req, res) => {
+  const userId = parseInt(req.params.userId);
+  if (isNaN(userId)) {
+    return res.status(400).json({ error: "invalid user ID" });
+  }
+
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        elo: true,
+        matchesPlayed: true,
+        wins: true,
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: "user not found" });
+    }
+
+    res.status(200).json(user);
+  } catch (error) {
+    console.error("Error fetching user:", error);
+    res.status(500).json({ error: "failed to fetch user" });
+  }
+});
+
 // Get user matches (protected)
 app.get("/api/users/:userId/matches", authenticateToken, async (req, res) => {
   const userId = parseInt(req.params.userId);

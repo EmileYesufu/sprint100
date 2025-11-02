@@ -13,8 +13,10 @@ export function metersToPct(meters: number): number {
 
 /**
  * Format Elo rating for display
+ * Handles null/undefined values gracefully
  */
-export function formatElo(elo: number): string {
+export function formatElo(elo?: number | null): string {
+  if (elo == null || isNaN(elo)) return "—";
   return Math.round(elo).toString();
 }
 

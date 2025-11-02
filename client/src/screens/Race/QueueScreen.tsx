@@ -17,6 +17,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "@/hooks/useAuth";
+import { useElo } from "@/hooks/useElo";
 import { useSocket } from "@/hooks/useSocket";
 import { useNetwork } from "@/hooks/useNetwork";
 import { getServerUrl } from "@/config";
@@ -34,6 +35,7 @@ type MatchMode = "queue" | "challenge";
 
 export default function QueueScreen({ navigation }: Props) {
   const { user, updateUser, token } = useAuth();
+  const { refreshElo } = useElo();
   const { socket, isConnected, joinQueue, leaveQueue } = useSocket();
   const { isOnline, isOfflineMode } = useNetwork();
   
@@ -78,6 +80,8 @@ export default function QueueScreen({ navigation }: Props) {
       const myResult = result.players.find((p) => p.userId === user?.id);
       if (myResult) {
         updateUser({ elo: myResult.newElo });
+        // Refresh ELO from server to ensure consistency
+        refreshElo();
       }
     };
 
