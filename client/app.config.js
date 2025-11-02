@@ -32,8 +32,8 @@ export default {
     },
     android: {
       adaptiveIcon: {
-        foregroundImage: "./assets/adaptive-icon.png",
-        backgroundColor: "#ffffff"
+        foregroundImage: "./assets/icon.png",
+        backgroundColor: "#000000"
       },
       package: "com.sprint100.app",
       versionCode: 1,
