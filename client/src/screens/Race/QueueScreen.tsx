@@ -16,6 +16,7 @@ import {
   Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useFocusEffect } from "@react-navigation/native";
 import { useAuth } from "@/hooks/useAuth";
 import { useElo } from "@/hooks/useElo";
 import { useSocket } from "@/hooks/useSocket";
@@ -35,7 +36,7 @@ type MatchMode = "queue" | "challenge";
 
 export default function QueueScreen({ navigation }: Props) {
   const { user, updateUser, token } = useAuth();
-  const { refreshElo } = useElo();
+  const { elo, refreshElo } = useElo();
   const { socket, isConnected, joinQueue, leaveQueue } = useSocket();
   const { isOnline, isOfflineMode } = useNetwork();
   
@@ -51,6 +52,13 @@ export default function QueueScreen({ navigation }: Props) {
   const [searchResults, setSearchResults] = useState<UserSearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [incomingChallenges, setIncomingChallenges] = useState<Challenge[]>([]);
+
+  // Refresh ELO when screen comes into focus (e.g., returning from a race)
+  useFocusEffect(
+    React.useCallback(() => {
+      refreshElo();
+    }, [refreshElo])
+  );
 
   useEffect(() => {
     if (!socket) return;
@@ -206,7 +214,7 @@ export default function QueueScreen({ navigation }: Props) {
         <Text style={styles.email}>{user.email}</Text>
         <View style={styles.eloContainer}>
           <Text style={styles.eloLabel}>Elo Rating:</Text>
-          <Text style={styles.eloValue}>{formatElo(user.elo)}</Text>
+          <Text style={styles.eloValue}>{formatElo(elo ?? user.elo)}</Text>
         </View>
       </View>
 

@@ -8,7 +8,7 @@ import { useAuth } from "./useAuth";
 import { getServerUrl } from "@/config";
 
 export function useElo() {
-  const { user, token } = useAuth();
+  const { user, token, updateUser } = useAuth();
   const [elo, setElo] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -35,7 +35,13 @@ export function useElo() {
       }
 
       const data = await response.json();
-      setElo(data.elo ?? null);
+      const fetchedElo = data.elo ?? null;
+      setElo(fetchedElo);
+      
+      // Update auth context to keep user.elo in sync
+      if (fetchedElo !== null && fetchedElo !== user.elo) {
+        updateUser({ elo: fetchedElo });
+      }
     } catch (err: any) {
       console.error("Failed to fetch ELO:", err.message);
       setError(err.message);
@@ -44,7 +50,7 @@ export function useElo() {
     } finally {
       setIsLoading(false);
     }
-  }, [user?.id, token, user?.elo]);
+  }, [user?.id, token, user?.elo, updateUser]);
 
   useEffect(() => {
     fetchElo();
