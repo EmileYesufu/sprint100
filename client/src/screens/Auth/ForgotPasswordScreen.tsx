@@ -17,6 +17,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { getServerUrl } from "@/config";
+import { validateEmail } from "@/utils/validateEmail";
 import { theme } from "@/theme";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { AuthStackParamList } from "@/navigation/AppNavigator";
@@ -35,10 +36,10 @@ export default function ForgotPasswordScreen({ navigation }: Props) {
       return;
     }
 
-    // Basic email validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      Alert.alert("Error", "Please enter a valid email address.");
+    // Validate email format and domain whitelist
+    const emailValidation = validateEmail(email);
+    if (!emailValidation.valid) {
+      Alert.alert("Invalid Email", emailValidation.message || "Please enter a valid email address.");
       return;
     }
 

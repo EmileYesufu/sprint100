@@ -18,6 +18,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "@/hooks/useAuth";
 import { getServerUrl } from "@/config";
+import { validateEmail } from "@/utils/validateEmail";
 import { theme } from "@/theme";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { AuthStackParamList } from "@/navigation/AppNavigator";
@@ -38,6 +39,14 @@ export default function RegisterScreen({ navigation }: Props) {
   const handleRegister = async () => {
     if (!email || !username || !password || !confirmPassword) {
       setError("Please fill in all fields");
+      return;
+    }
+
+    // Validate email format and domain whitelist
+    const emailValidation = validateEmail(email);
+    if (!emailValidation.valid) {
+      setError(emailValidation.message || "Invalid email address");
+      Alert.alert("Invalid Email", emailValidation.message || "Please enter a valid email address.");
       return;
     }
 
