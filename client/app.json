@@ -46,7 +46,7 @@
       "eas": {
         "projectId": "auto-generate"
       },
-      "API_URL": "http://192.168.1.218:4000"
+      "API_URL": "http://192.168.1.140:4000"
     },
     "privacy": {
       "policyUrl": "https://sprint100.com/privacy-policy"
