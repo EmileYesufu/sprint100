@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useEffect } from "react";
-import { NavigationContainer, getFocusedRouteNameFromRoute } from "@react-navigation/native";
+import { NavigationContainer, getFocusedRouteNameFromRoute, NavigationContainerRef } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { ActivityIndicator, View, StyleSheet, Text } from "react-native";
@@ -233,7 +233,8 @@ export default function AppNavigator() {
   const [hasSeenOnboarding, setHasSeenOnboarding] = useState<boolean | null>(null);
   const [checkingOnboarding, setCheckingOnboarding] = useState(true);
   const [splashFinished, setSplashFinished] = useState(false);
-  const navigationRef = React.useRef<any>(null);
+  const [navigationReady, setNavigationReady] = useState(false);
+  const navigationRef = React.useRef<NavigationContainerRef<RootStackParamList>>(null);
 
   // Check onboarding status on mount
   useEffect(() => {
@@ -258,21 +259,66 @@ export default function AppNavigator() {
   };
 
   useEffect(() => {
-    if (splashFinished && !isLoading && !checkingOnboarding && navigationRef.current) {
+    if (splashFinished && !isLoading && !checkingOnboarding && navigationReady) {
       // Small delay to ensure smooth transition
-      setTimeout(() => {
-        if (token) {
-          navigationRef.current?.replace("Main");
-        } else {
-          navigationRef.current?.replace("Auth");
+      const timeoutId = setTimeout(() => {
+        try {
+          const nav = navigationRef.current;
+          if (nav) {
+            if (token) {
+              nav.reset({
+                index: 0,
+                routes: [{ name: "Main" }],
+              });
+            } else {
+              nav.reset({
+                index: 0,
+                routes: [{ name: "Auth" }],
+              });
+            }
+          }
+        } catch (error) {
+          console.error("Navigation error:", error);
+          // Fallback: try again after delay
+          setTimeout(() => {
+            try {
+              const nav = navigationRef.current;
+              if (nav) {
+                if (token) {
+                  nav.reset({
+                    index: 0,
+                    routes: [{ name: "Main" }],
+                  });
+                } else {
+                  nav.reset({
+                    index: 0,
+                    routes: [{ name: "Auth" }],
+                  });
+                }
+              }
+            } catch (retryError) {
+              console.error("Navigation retry error:", retryError);
+            }
+          }, 200);
         }
-      }, 100);
+      }, 150);
+
+      return () => clearTimeout(timeoutId);
     }
-  }, [splashFinished, isLoading, checkingOnboarding, token]);
+  }, [splashFinished, isLoading, checkingOnboarding, token, navigationReady]);
 
   // Show splash screen first, then transition to auth/main
   return (
-    <NavigationContainer ref={navigationRef}>
+    <NavigationContainer 
+      ref={navigationRef}
+      onReady={() => {
+        // Mark navigation as ready
+        setNavigationReady(true);
+      }}
+      onStateChange={() => {
+        // Optional: track navigation state changes for debugging
+      }}
+    >
       <RootStack.Navigator
         screenOptions={{
           headerShown: false,
