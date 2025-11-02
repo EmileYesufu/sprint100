@@ -57,10 +57,19 @@ export default function RegisterScreen({ navigation }: Props) {
     setError("");
 
     try {
+      // Debug: Log all config sources
+      const Constants = require('expo-constants').default;
+      console.log('🔍 DEBUG Config Sources:', {
+        expoConfigUrl: Constants.expoConfig?.extra?.API_URL,
+        envUrl: process.env.EXPO_PUBLIC_API_URL,
+        defaultFromConfig: require('@/config').DEFAULT_SERVER_URL,
+      });
+      
       const serverUrl = getServerUrl();
       const fullUrl = `${serverUrl}/api/register`;
       console.log(`🌐 Attempting registration to: ${fullUrl}`);
       console.log(`📱 Current network state check...`);
+      console.log(`🔗 Final serverUrl used: ${serverUrl}`);
       
       // Add timeout and better error handling for React Native
       const controller = new AbortController();
