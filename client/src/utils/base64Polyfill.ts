@@ -4,14 +4,19 @@
  */
 
 // Simple base64 decode implementation for React Native
-export function atob(input: string): string {
-  if (typeof global.atob !== 'undefined') {
-    return global.atob(input);
+// Handles both standard base64 and URL-safe base64 (JWT uses URL-safe)
+function atobImpl(input: string): string {
+  // Convert URL-safe base64 to standard base64 (JWT tokens use URL-safe encoding)
+  let str = input.replace(/-/g, '+').replace(/_/g, '/');
+  
+  // Add padding if needed
+  while (str.length % 4) {
+    str += '=';
   }
   
   // Fallback implementation
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
-  let str = input.replace(/=+$/, '');
+  str = str.replace(/=+$/, '');
   let output = '';
   
   if (str.length % 4 === 1) {
@@ -19,7 +24,7 @@ export function atob(input: string): string {
   }
   
   for (let bc = 0, bs = 0, buffer, i = 0; buffer = str.charAt(i++); ) {
-    if (buffer && (buffer = chars.indexOf(buffer))) {
+    if (buffer && (buffer = chars.indexOf(buffer)) >= 0) {
       bs = bc % 4 ? bs * 64 + buffer : buffer;
       if (bc++ % 4) {
         output += String.fromCharCode(255 & bs >> (-2 * bc & 6));
@@ -31,11 +36,7 @@ export function atob(input: string): string {
 }
 
 // Simple base64 encode implementation for React Native
-export function btoa(input: string): string {
-  if (typeof global.btoa !== 'undefined') {
-    return global.btoa(input);
-  }
-  
+function btoaImpl(input: string): string {
   // Fallback implementation
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
   let str = input;
@@ -52,12 +53,17 @@ export function btoa(input: string): string {
   return output;
 }
 
-// Install polyfill globally
-if (typeof global.atob === 'undefined') {
-  global.atob = atob;
+// Install polyfill globally only if they don't exist
+// Use a flag to prevent recursive calls
+if (typeof (global as any).atob === 'undefined') {
+  (global as any).atob = function(input: string): string {
+    return atobImpl(input);
+  };
 }
 
-if (typeof global.btoa === 'undefined') {
-  global.btoa = btoa;
+if (typeof (global as any).btoa === 'undefined') {
+  (global as any).btoa = function(input: string): string {
+    return btoaImpl(input);
+  };
 }
 

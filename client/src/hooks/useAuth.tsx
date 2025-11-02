@@ -9,7 +9,7 @@ import * as SecureStore from "expo-secure-store";
 import { jwtDecode } from "jwt-decode";
 import { User } from "@/types";
 import { getServerUrl } from "@/config";
-// Import base64 polyfill for React Native
+// Import base64 polyfill for React Native (must be imported early)
 import "@/utils/base64Polyfill";
 
 interface JWTPayload {

@@ -22,10 +22,12 @@ import {
   ScrollView,
   Alert,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useTraining } from "@/hooks/useTraining";
 import { metersToPct } from "@/utils/formatting";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { TrainingStackParamList } from "@/navigation/AppNavigator";
+import type { TrainingRecord } from "@/types";
 
 type Props = NativeStackScreenProps<TrainingStackParamList, "TrainingRace">;
 
@@ -56,11 +58,28 @@ function getAccessibilityLabel(position: number | undefined): string {
   return `Position ${position}, finished`;
 }
 
+/**
+ * Get position suffix (1st, 2nd, 3rd, 4th, etc.)
+ */
+function getPositionSuffix(position: number): string {
+  if (position % 100 >= 11 && position % 100 <= 13) {
+    return "th";
+  }
+  switch (position % 10) {
+    case 1: return "st";
+    case 2: return "nd";
+    case 3: return "rd";
+    default: return "th";
+  }
+}
+
 export default function TrainingRaceScreen({ route, navigation }: Props) {
   const { config } = route.params;
-  const { raceState, start, tap, result, abort, isLocallyEnded, localEndResult, finalPlacings } = useTraining();
+  const { raceState, start, tap, result, abort, isLocallyEnded, localEndResult, finalPlacings, rerace } = useTraining();
   const [countdown, setCountdown] = useState<CountdownState>("3");
   const [raceStarted, setRaceStarted] = useState(false);
+  const [personalBest, setPersonalBest] = useState<TrainingRecord | null>(null);
+  const [isPersonalBest, setIsPersonalBest] = useState(false);
   const countdownTimeouts = useRef<NodeJS.Timeout[]>([]);
 
   useEffect(() => {
@@ -138,12 +157,69 @@ export default function TrainingRaceScreen({ route, navigation }: Props) {
   // Race Seed and Replay functionality removed for Training Mode
 
   /**
+   * Check personal best when result is available
+   */
+  useEffect(() => {
+    if (!result) return;
+    
+    const checkPersonalBest = async () => {
+      try {
+        const stored = await AsyncStorage.getItem("@sprint100_training_records");
+        const records: TrainingRecord[] = stored ? JSON.parse(stored) : [];
+        const key = `${config.difficulty}-${config.aiCount}`;
+        const existing = records.find((r) => `${r.difficulty}-${r.aiCount}` === key);
+        
+        const playerResult = result.runners.find((r) => r.isPlayer);
+        if (playerResult) {
+          setPersonalBest(existing || null);
+          
+          // Check if this is a new personal best
+          if (!existing || 
+              playerResult.position < existing.bestPosition ||
+              (playerResult.position === existing.bestPosition && playerResult.finishTime < existing.bestTime)) {
+            setIsPersonalBest(true);
+          }
+        }
+      } catch (error) {
+        console.error("Error checking personal best:", error);
+      }
+    };
+    
+    checkPersonalBest();
+  }, [result, config]);
+
+  /**
    * Return to TrainingSetupScreen and cleanup all timers/AI runners
    */
   const handleReturnHome = () => {
     countdownTimeouts.current.forEach(clearTimeout);
     abort(); // Cleanup all timers and state
     navigation.goBack();
+  };
+
+  /**
+   * Handle rerun - start a new race with same config
+   */
+  const handleRerun = () => {
+    countdownTimeouts.current.forEach(clearTimeout);
+    abort(); // Cleanup current race
+    setCountdown("3");
+    setRaceStarted(false);
+    setIsPersonalBest(false);
+    setPersonalBest(null);
+    // Restart race with same config
+    start(config);
+    
+    // Reset countdown
+    const timeout1 = setTimeout(() => setCountdown("2"), 700);
+    const timeout2 = setTimeout(() => setCountdown("1"), 1400);
+    const timeout3 = setTimeout(() => setCountdown("Go"), 2100);
+    const timeout4 = setTimeout(() => {
+      setCountdown(null);
+      setRaceStarted(true);
+    }, 2350);
+    
+    countdownTimeouts.current = [timeout1, timeout2, timeout3, timeout4];
   };
 
   // Sort runners: use finalPlacings if available (race ended), otherwise sort by progress
@@ -267,53 +343,113 @@ export default function TrainingRaceScreen({ route, navigation }: Props) {
         </View>
       )}
 
-      {/* Results Overlay */}
-      {raceState.status === "finished" && result && (
-        <View style={styles.resultOverlay}>
-          <ScrollView contentContainerStyle={styles.resultContent}>
-            <Text style={styles.resultTitle}>Race Complete!</Text>
-
-            {result.runners.map((runner) => {
-              const medal = getMedalForPosition(runner.position);
+      {/* Results Overlay - New Template Design */}
+      {raceState.status === "finished" && result && (() => {
+        const playerResult = result.runners.find((r) => r.isPlayer);
+        const totalRacers = result.runners.length;
+        const playerPosition = playerResult?.position || 1;
+        const playerTime = playerResult?.finishTime ? (playerResult.finishTime / 1000).toFixed(2) : "0.00";
+        const raceElapsedTime = (raceState.elapsedMs / 1000).toFixed(2);
+        
+        return (
+          <View style={styles.resultOverlay}>
+            {/* Top Section */}
+            <View style={styles.topSection}>
+              {/* Timer Icon + Time on Left */}
+              <View style={styles.timerSection}>
+                <Text style={styles.timerIcon}>⏱</Text>
+                <Text style={styles.timerText}>{raceElapsedTime}</Text>
+              </View>
               
-              return (
-                <View key={runner.id} style={styles.resultRow}>
-                  {/* Show medal for top-3, numeric position for others */}
-                  {medal ? (
-                    <Text 
-                      style={styles.resultMedal}
-                      accessibilityLabel={getAccessibilityLabel(runner.position)}
-                    >
-                      {medal}
-                    </Text>
-                  ) : (
-                    <Text style={[styles.resultPosition, runner.isPlayer && styles.playerText]}>
-                      #{runner.position}
-                    </Text>
-                  )}
-                  <Text style={[styles.resultName, runner.isPlayer && styles.playerText]}>
-                    {runner.name}
-                  </Text>
-                  <Text style={styles.resultTime}>
-                    {(runner.finishTime / 1000).toFixed(2)}s
-                  </Text>
-                  <Text style={styles.resultMeters}>{Math.round(runner.finalMeters)}m</Text>
-                </View>
-              );
-            })}
-
-            <View style={styles.resultButtons}>
-              {/* Race Seed and Replay functionality removed for Training Mode */}
-              <TouchableOpacity
-                style={[styles.resultButton, styles.returnHomeButton]}
-                onPress={handleReturnHome}
-              >
-                <Text style={styles.resultButtonText}>🏠 Return Home</Text>
-              </TouchableOpacity>
+              {/* Position Indicator Centered */}
+              <View style={styles.positionIndicator}>
+                <Text style={styles.positionText}>{playerPosition}{getPositionSuffix(playerPosition)} / {totalRacers}</Text>
+              </View>
+              
+              {/* Flag Icon on Right */}
+              <View style={styles.flagSection}>
+                <Text style={styles.flagIcon}>🏁</Text>
+              </View>
             </View>
-          </ScrollView>
-        </View>
-      )}
+
+            {/* Progress Bar with Avatars */}
+            <View style={styles.progressSectionTop}>
+              <View style={styles.progressBarContainerTop}>
+                <View style={styles.progressBarTop}>
+                  <View style={[styles.progressBarFilled, { width: `${metersToPct(playerResult?.finalMeters || 0)}%` }]} />
+                </View>
+                {result.runners.map((runner, index) => {
+                  const progress = metersToPct(runner.finalMeters);
+                  const isPlayer = runner.isPlayer;
+                  
+                  return (
+                    <View 
+                      key={runner.id} 
+                      style={[
+                        styles.avatarMarker,
+                        { left: `${Math.min(progress, 98)}%` }, // Cap at 98% to keep avatar visible
+                        isPlayer && styles.playerAvatarMarker
+                      ]}
+                    >
+                      <View style={[styles.avatar, isPlayer && styles.playerAvatar]}>
+                        <Text style={styles.avatarText}>
+                          {isPlayer ? "U" : runner.name.substring(0, 1).toUpperCase()}
+                        </Text>
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            </View>
+
+            {/* Middle Section - Dark Blue Background (Race Area) */}
+            <View style={styles.middleSection} />
+
+            {/* Bottom Results Card */}
+            <View style={styles.resultCard}>
+              <Text style={styles.resultCardTitle}>Race Finished!</Text>
+              
+              <View style={styles.resultCardContent}>
+                <Text style={styles.resultCardSubtitle}>You finished</Text>
+                <Text style={styles.resultCardPosition}>{playerPosition}{getPositionSuffix(playerPosition)}</Text>
+                
+                <View style={styles.resultCardStats}>
+                  <View style={styles.statItem}>
+                    <Text style={styles.statLabel}>Time</Text>
+                    <Text style={styles.statValue}>{playerTime}s</Text>
+                  </View>
+                  
+                  {isPersonalBest && (
+                    <View style={styles.statItem}>
+                      <View style={styles.personalBestBadge}>
+                        <Text style={styles.starIcon}>⭐</Text>
+                        <Text style={styles.newBadgeText}>New</Text>
+                      </View>
+                      <Text style={styles.personalBestText}>Personal Best!</Text>
+                    </View>
+                  )}
+                </View>
+                
+                <View style={styles.resultCardButtons}>
+                  <TouchableOpacity
+                    style={styles.returnHomeButtonCard}
+                    onPress={handleReturnHome}
+                  >
+                    <Text style={styles.returnHomeButtonText}>Return Home</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity
+                    style={styles.rerunButtonCard}
+                    onPress={handleRerun}
+                  >
+                    <Text style={styles.rerunButtonText}>Rerun</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </View>
+        );
+      })()}
 
       {/* Tap Buttons - Smaller, positioned at bottom third */}
       {raceState.status === "racing" && !result && raceStarted && (
@@ -537,66 +673,198 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: "rgba(0, 0, 0, 0.95)",
+    backgroundColor: "#0A1628", // Dark blue background
   },
-  resultContent: {
-    padding: 24,
-    paddingTop: 60,
-  },
-  resultTitle: {
-    fontSize: 32,
-    fontWeight: "bold",
-    color: "#fff",
-    textAlign: "center",
-    marginBottom: 24,
-  },
-  resultRow: {
+  topSection: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#1C1C1E",
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 8,
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingTop: 60,
+    paddingBottom: 12,
   },
-  resultPosition: {
+  timerSection: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  timerIcon: {
+    fontSize: 20,
+    color: "#fff",
+  },
+  timerText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#fff",
+  },
+  positionIndicator: {
+    flex: 1,
+    alignItems: "center",
+  },
+  positionText: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "#999",
-    width: 40,
+    color: "#fff",
   },
-  resultMedal: {
-    fontSize: 28,
-    width: 40,
-    textAlign: "center",
+  flagSection: {
+    alignItems: "flex-end",
   },
-  resultName: {
+  flagIcon: {
+    fontSize: 24,
+  },
+  progressSectionTop: {
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+  },
+  progressBarContainerTop: {
+    height: 8,
+    backgroundColor: "#1C2A3A",
+    borderRadius: 4,
+    position: "relative",
+    overflow: "visible",
+  },
+  progressBarTop: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: "100%",
+    backgroundColor: "#1C2A3A",
+    borderRadius: 4,
+  },
+  progressBarFilled: {
+    height: "100%",
+    backgroundColor: "#007AFF", // Bright blue
+    borderRadius: 4,
+  },
+  avatarMarker: {
+    position: "absolute",
+    top: -12,
+    marginLeft: -16,
+    zIndex: 10,
+  },
+  playerAvatarMarker: {
+    zIndex: 11,
+  },
+  avatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#2C3A4A",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "#1C2A3A",
+  },
+  playerAvatar: {
+    backgroundColor: "#007AFF",
+    borderColor: "#0051D5",
+  },
+  avatarText: {
+    fontSize: 10,
+    fontWeight: "bold",
+    color: "#fff",
+  },
+  middleSection: {
     flex: 1,
-    fontSize: 16,
-    color: "#999",
+    backgroundColor: "#0A1628", // Dark blue background
   },
-  resultTime: {
+  resultCard: {
+    backgroundColor: "#1C2A3A", // Slightly lighter dark blue
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    paddingBottom: 40,
+  },
+  resultCardTitle: {
+    fontSize: 24,
+    fontWeight: "bold",
+    color: "#fff",
+    textAlign: "center",
+    marginBottom: 16,
+  },
+  resultCardContent: {
+    alignItems: "center",
+  },
+  resultCardSubtitle: {
+    fontSize: 16,
+    color: "#fff",
+    marginBottom: 8,
+  },
+  resultCardPosition: {
+    fontSize: 72,
+    fontWeight: "bold",
+    color: "#007AFF", // Bright blue
+    marginBottom: 24,
+  },
+  resultCardStats: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    width: "100%",
+    marginBottom: 32,
+    paddingHorizontal: 20,
+  },
+  statItem: {
+    alignItems: "center",
+  },
+  statLabel: {
     fontSize: 14,
     color: "#fff",
-    marginRight: 12,
+    marginBottom: 4,
   },
-  resultMeters: {
+  statValue: {
+    fontSize: 24,
+    fontWeight: "bold",
+    color: "#fff",
+  },
+  personalBestBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#34C759",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    marginBottom: 4,
+    gap: 4,
+  },
+  starIcon: {
     fontSize: 14,
-    color: "#666",
   },
-  resultButtons: {
-    marginTop: 24,
+  newBadgeText: {
+    fontSize: 12,
+    fontWeight: "bold",
+    color: "#fff",
+  },
+  personalBestText: {
+    fontSize: 14,
+    color: "#fff",
+    fontWeight: "500",
+  },
+  resultCardButtons: {
+    flexDirection: "row",
     gap: 12,
+    width: "100%",
   },
-  resultButton: {
-    backgroundColor: "#007AFF",
+  returnHomeButtonCard: {
+    flex: 1,
+    backgroundColor: "#2C3A4A", // Grey
     borderRadius: 12,
     padding: 16,
     alignItems: "center",
   },
-  returnHomeButton: {
-    backgroundColor: "#666",
+  returnHomeButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
   },
-  resultButtonText: {
+  rerunButtonCard: {
+    flex: 1,
+    backgroundColor: "#007AFF", // Bright blue
+    borderRadius: 12,
+    padding: 16,
+    alignItems: "center",
+  },
+  rerunButtonText: {
     color: "#fff",
     fontSize: 16,
     fontWeight: "600",

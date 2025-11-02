@@ -482,11 +482,16 @@ export default function RaceScreen({ route, navigation }: Props) {
                     <Text style={styles.statValue}>{playerTime}s</Text>
                   </View>
                   
-                  {medal && (
-                    <View style={styles.statItem}>
-                      <Text style={styles.medalIcon}>{medal}</Text>
-                    </View>
-                  )}
+                  {/* Personal Best section - matching TrainingRaceScreen design */}
+                  {/* Note: Online races don't track personal bests, but we show empty space for visual parity */}
+                  <View style={styles.statItem}>
+                    {/* Could add ELO delta here instead for online races */}
+                    {medal && (
+                      <View style={styles.medalContainer}>
+                        <Text style={styles.medalIcon}>{medal}</Text>
+                      </View>
+                    )}
+                  </View>
                 </View>
                 
                 <View style={styles.resultCardButtons}>
@@ -795,6 +800,10 @@ const styles = StyleSheet.create({
     fontSize: typography.h4.fontSize,
     fontWeight: typography.h4.fontWeight,
     color: colors.text,
+  },
+  medalContainer: {
+    alignItems: "center",
+    justifyContent: "center",
   },
   medalIcon: {
     fontSize: 32,

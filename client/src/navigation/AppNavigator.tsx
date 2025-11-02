@@ -1,18 +1,20 @@
 /**
  * App Navigator
  * Root navigation setup with authentication flow
- * - AuthStack: Login/Register screens when not authenticated
+ * - AuthStack: Onboarding → Login/Register screens when not authenticated
  * - MainTabs: Bottom tab navigation when authenticated (Race, Profile, Leaderboard, Settings)
  */
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { NavigationContainer, getFocusedRouteNameFromRoute } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { ActivityIndicator, View, StyleSheet, Text } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth } from "@/hooks/useAuth";
 
 // Auth Screens
+import OnboardingScreen from "@/screens/OnboardingScreen";
 import LoginScreen from "@/screens/Auth/LoginScreen";
 import RegisterScreen from "@/screens/Auth/RegisterScreen";
 
@@ -31,6 +33,7 @@ import SettingsScreen from "@/screens/SettingsScreen";
 
 // Navigation Type Definitions
 export type AuthStackParamList = {
+  Onboarding: undefined;
   Login: undefined;
   Register: undefined;
 };
@@ -78,14 +81,16 @@ const RaceStack = createNativeStackNavigator<RaceStackParamList>();
 const TrainingStack = createNativeStackNavigator<TrainingStackParamList>();
 const MainTabs = createBottomTabNavigator<MainTabsParamList>();
 
-// Auth Stack Navigator (Login/Register)
-function AuthNavigator() {
+// Auth Stack Navigator (Onboarding/Login/Register)
+function AuthNavigator({ initialRouteName = "Onboarding" }: { initialRouteName?: "Onboarding" | "Login" }) {
   return (
     <AuthStack.Navigator
       screenOptions={{
         headerShown: false,
       }}
+      initialRouteName={initialRouteName}
     >
+      <AuthStack.Screen name="Onboarding" component={OnboardingScreen} />
       <AuthStack.Screen name="Login" component={LoginScreen} />
       <AuthStack.Screen name="Register" component={RegisterScreen} />
     </AuthStack.Navigator>
@@ -215,8 +220,28 @@ function TabIcon({ name, color }: { name: string; color: string }) {
 // Root App Navigator
 export default function AppNavigator() {
   const { token, isLoading } = useAuth();
+  const [hasSeenOnboarding, setHasSeenOnboarding] = useState<boolean | null>(null);
+  const [checkingOnboarding, setCheckingOnboarding] = useState(true);
 
-  if (isLoading) {
+  // Check onboarding status on mount
+  useEffect(() => {
+    const checkOnboarding = async () => {
+      try {
+        const seen = await AsyncStorage.getItem("@sprint100_onboarding_seen");
+        setHasSeenOnboarding(seen === "true");
+      } catch (error) {
+        console.error("Error checking onboarding status:", error);
+        setHasSeenOnboarding(false); // Default to showing onboarding on error
+      } finally {
+        setCheckingOnboarding(false);
+      }
+    };
+
+    checkOnboarding();
+  }, []);
+
+  // Show loading while checking auth and onboarding
+  if (isLoading || checkingOnboarding) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#007AFF" />
@@ -226,7 +251,11 @@ export default function AppNavigator() {
 
   return (
     <NavigationContainer>
-      {token ? <MainNavigator /> : <AuthNavigator />}
+      {token ? (
+        <MainNavigator />
+      ) : (
+        <AuthNavigator initialRouteName={hasSeenOnboarding ? "Login" : "Onboarding"} />
+      )}
     </NavigationContainer>
   );
 }
