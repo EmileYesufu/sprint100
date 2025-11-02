@@ -1,5 +1,5 @@
 /**
- * Race Screen
+ * Race Screen - Stitch Design
  * Portrait race interface with tap buttons for left/right foot taps
  * Shows real-time race progress and handles tap events
  * 
@@ -13,20 +13,30 @@ import {
   TouchableOpacity,
   StyleSheet,
   Dimensions,
-  Alert,
+  Animated,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "@/hooks/useAuth";
 import { useSocket } from "@/hooks/useSocket";
 import { metersToPct } from "@/utils/formatting";
 import { computeFinishThreshold, hasReachedThreshold } from "@/utils/finishThreshold";
 import { computeFinalPlacings, type RacerProgress } from "@/utils/computeFinalPlacings";
+import { getPositionSuffix, getMedalForPosition, getAvatarInitials, getColorFromString } from "@/utils/uiHelpers";
 import type { RaceUpdate, MatchResult, PlayerState, LocalEndResult } from "@/types";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { RaceStackParamList } from "@/navigation/AppNavigator";
+import { colors, typography, spacing, shadows, radii } from "@/theme";
 
 type Props = NativeStackScreenProps<RaceStackParamList, "Race">;
 
 const { width, height } = Dimensions.get("window");
+
+interface PlayerDisplay {
+  userId: number;
+  username: string;
+  meters: number;
+  isPlayer: boolean;
+}
 
 export default function RaceScreen({ route, navigation }: Props) {
   const { matchId, opponent } = route.params;
@@ -37,27 +47,69 @@ export default function RaceScreen({ route, navigation }: Props) {
   const [raceStarted, setRaceStarted] = useState(false);
   const [raceFinished, setRaceFinished] = useState(false);
   const [myMeters, setMyMeters] = useState(0);
-  const [opponentMeters, setOpponentMeters] = useState(0);
+  const [allPlayers, setAllPlayers] = useState<PlayerDisplay[]>([]);
   const [result, setResult] = useState<MatchResult | null>(null);
+  const [raceStartTime, setRaceStartTime] = useState<number | null>(null);
+  const [elapsedTime, setElapsedTime] = useState(0);
+  const [currentPosition, setCurrentPosition] = useState<number>(1);
+  const [totalPlayers, setTotalPlayers] = useState(2);
   
-  // Client-local early end threshold logic — does not replace server authoritative end.
-  // For online matches we show a local early finish overlay but wait for server.match_end to reconcile.
+  // Client-local early end threshold logic
   const [isLocallyEnded, setIsLocallyEnded] = useState(false);
   const [localEndResult, setLocalEndResult] = useState<LocalEndResult | null>(null);
   const [serverResultReceived, setServerResultReceived] = useState(false);
-  const [clientPlacings, setClientPlacings] = useState<string[]>([]); // Client-computed placings
+  const [clientPlacings, setClientPlacings] = useState<string[]>([]);
   
   const lastSide = useRef<"left" | "right" | null>(null);
-  const finishedPlayers = useRef<Set<number>>(new Set()); // Track who has finished
-  const playerStates = useRef<Map<number, PlayerState>>(new Map()); // Track all player states
+  const finishedPlayers = useRef<Set<number>>(new Set());
+  const playerStates = useRef<Map<number, PlayerState>>(new Map());
+  const countdownAnim = useRef(new Animated.Value(0)).current;
+  const elapsedTimeInterval = useRef<NodeJS.Timeout | null>(null);
 
-  // Countdown timer
+  // Countdown timer with animation
   useEffect(() => {
     if (countdown === null || countdown <= 0) {
-      setRaceStarted(true);
-      setCountdown(null);
+      if (countdown === 0) {
+        // "GO!" moment
+        Animated.sequence([
+          Animated.timing(countdownAnim, {
+            toValue: 1,
+            duration: 200,
+            useNativeDriver: true,
+          }),
+          Animated.timing(countdownAnim, {
+            toValue: 0,
+            duration: 300,
+            useNativeDriver: true,
+          }),
+        ]).start(() => {
+          setRaceStarted(true);
+          setRaceStartTime(Date.now());
+          setCountdown(null);
+        });
+      } else {
+        setRaceStarted(true);
+        setRaceStartTime(Date.now());
+        setCountdown(null);
+      }
       return;
     }
+
+    // Animate countdown number
+    countdownAnim.setValue(0);
+    Animated.sequence([
+      Animated.timing(countdownAnim, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      Animated.delay(400),
+      Animated.timing(countdownAnim, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+    ]).start();
 
     const timer = setTimeout(() => {
       setCountdown(countdown - 1);
@@ -65,6 +117,51 @@ export default function RaceScreen({ route, navigation }: Props) {
 
     return () => clearTimeout(timer);
   }, [countdown]);
+
+  // Track elapsed time during race
+  useEffect(() => {
+    if (!raceStarted || raceFinished || raceStartTime === null) {
+      if (elapsedTimeInterval.current) {
+        clearInterval(elapsedTimeInterval.current);
+        elapsedTimeInterval.current = null;
+      }
+      return;
+    }
+
+    elapsedTimeInterval.current = setInterval(() => {
+      setElapsedTime(Math.floor((Date.now() - raceStartTime) / 100) / 10);
+    }, 100);
+
+    return () => {
+      if (elapsedTimeInterval.current) {
+        clearInterval(elapsedTimeInterval.current);
+      }
+    };
+  }, [raceStarted, raceFinished, raceStartTime]);
+
+  // Update position and players list from player states
+  useEffect(() => {
+    if (playerStates.current.size === 0) return;
+
+    const playersArray: PlayerDisplay[] = Array.from(playerStates.current.values()).map(p => ({
+      userId: p.userId,
+      username: p.email || `Player ${p.userId}`,
+      meters: p.meters,
+      isPlayer: p.userId === user?.id,
+    }));
+
+    // Sort by meters (descending) to determine position
+    playersArray.sort((a, b) => b.meters - a.meters);
+    
+    // Find current player's position
+    const playerIndex = playersArray.findIndex(p => p.isPlayer);
+    if (playerIndex !== -1) {
+      setCurrentPosition(playerIndex + 1);
+    }
+
+    setAllPlayers(playersArray);
+    setTotalPlayers(playersArray.length);
+  }, [myMeters, user]);
 
   // Socket listeners
   useEffect(() => {
@@ -75,27 +172,22 @@ export default function RaceScreen({ route, navigation }: Props) {
 
       // Update meters for players and store all player states
       update.players.forEach((player: PlayerState) => {
-        // Store player state for final placings computation
         playerStates.current.set(player.userId, player);
         
         if (player.userId === user?.id) {
           setMyMeters(player.meters);
-        } else {
-          setOpponentMeters(player.meters);
         }
         
-        // Track finished players (crossed 100m line)
         if (player.meters >= 100) {
           finishedPlayers.current.add(player.userId);
         }
       });
 
-      // Check if local threshold is reached (for client-side early end UI)
+      // Check if local threshold is reached
       const totalPlayers = update.players.length;
       const finishedCount = finishedPlayers.current.size;
       
       if (!isLocallyEnded && hasReachedThreshold(finishedCount, totalPlayers)) {
-        // Compute final placings for ALL players (finished + unfinished by progress)
         const racerProgress: RacerProgress[] = Array.from(playerStates.current.values()).map(p => ({
           id: String(p.userId),
           distance: p.meters,
@@ -107,19 +199,13 @@ export default function RaceScreen({ route, navigation }: Props) {
         const placings = computeFinalPlacings(racerProgress, totalPlayers, threshold);
         setClientPlacings(placings);
 
-        if (__DEV__) {
-          console.log('[RaceScreen] Local end triggered - final placings:', placings);
-          console.log('[RaceScreen] Player states:', Array.from(playerStates.current.entries()));
-        }
-
-        // Mark race as locally ended (disable taps, show early finish overlay)
         setIsLocallyEnded(true);
         setLocalEndResult({
           endedAt: Date.now(),
-          finishOrder: placings, // Use computed placings instead of just finished IDs
+          finishOrder: placings,
           threshold,
           totalRacers: totalPlayers,
-          runners: [], // We don't have RunnerState in online mode, only PlayerState
+          runners: [],
         });
       }
     };
@@ -127,15 +213,15 @@ export default function RaceScreen({ route, navigation }: Props) {
     const handleMatchEnd = (matchResult: MatchResult) => {
       if (matchResult.matchId !== matchId) return;
 
-      // Server result received - this is authoritative
       setServerResultReceived(true);
       setRaceFinished(true);
       setResult(matchResult);
 
-      // Show result for 3 seconds then navigate back
-      setTimeout(() => {
-        navigation.navigate("Queue");
-      }, 3000);
+      // Clear elapsed time interval
+      if (elapsedTimeInterval.current) {
+        clearInterval(elapsedTimeInterval.current);
+        elapsedTimeInterval.current = null;
+      }
     };
 
     socket.on("race_update", handleRaceUpdate);
@@ -145,203 +231,433 @@ export default function RaceScreen({ route, navigation }: Props) {
       socket.off("race_update", handleRaceUpdate);
       socket.off("match_end", handleMatchEnd);
     };
-  }, [socket, matchId, user, navigation, isLocallyEnded]);
+  }, [socket, matchId, user, isLocallyEnded]);
 
   const handleTap = (side: "left" | "right") => {
-    // Disable taps when locally ended (threshold reached) or race finished
     if (!raceStarted || raceFinished || isLocallyEnded || !socket) return;
 
-    // Alternate sides mechanic (optional, can be removed if any tap works)
     if (lastSide.current === side) {
-      // Optionally penalize for same-side taps
-      return;
+      return; // Alternate sides mechanic
     }
 
     lastSide.current = side;
     socket.emit("tap", { matchId, side, ts: Date.now() });
   };
 
-  const myProgress = metersToPct(myMeters);
-  const opponentProgress = metersToPct(opponentMeters);
-
-  // Result display
-  const getResultText = () => {
-    if (!result || !user) return "";
-    const myResult = result.players.find((p) => p.userId === user.id);
-    const won = result.winnerId === user.id;
-    return won ? `You Won! +${myResult?.eloDelta || 0} Elo` : `You Lost ${myResult?.eloDelta || 0} Elo`;
+  const handleReturnHome = () => {
+    navigation.navigate("Queue");
   };
 
-  return (
-    <View style={styles.container}>
-      {/* Progress Bars */}
-      <View style={styles.progressSection}>
-        {/* Opponent Progress */}
-        <View style={styles.playerContainer}>
-          <Text style={styles.playerLabel}>{opponent.email}</Text>
-          <View style={styles.progressBarContainer}>
-            <View style={[styles.progressBar, { width: `${opponentProgress}%` }]} />
-          </View>
-          <Text style={styles.metersText}>{Math.round(opponentMeters)}m</Text>
-        </View>
+  const handleRerun = () => {
+    // Navigate back and rejoin queue or challenge same opponent
+    navigation.navigate("Queue");
+  };
 
-        {/* My Progress */}
-        <View style={styles.playerContainer}>
-          <Text style={[styles.playerLabel, styles.myLabel]}>You</Text>
-          <View style={styles.progressBarContainer}>
-            <View style={[styles.progressBar, styles.myProgressBar, { width: `${myProgress}%` }]} />
+  // Format elapsed time
+  const formatElapsedTime = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = (seconds % 60).toFixed(2).padStart(5, '0');
+    return mins > 0 ? `${mins}:${secs}` : `00:${secs}`;
+  };
+
+  // Get player result from match result
+  const getPlayerResult = () => {
+    if (!result || !user) return null;
+    return result.players.find((p) => p.userId === user.id);
+  };
+
+  // Countdown scale animation
+  const countdownScale = countdownAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.5, 1.2],
+  });
+
+  const countdownOpacity = countdownAnim.interpolate({
+    inputRange: [0, 0.5, 1],
+    outputRange: [0, 1, 0],
+  });
+
+  return (
+    <SafeAreaView style={styles.container} edges={["top"]}>
+      {/* Header: Race Info Bar */}
+      {raceStarted && !raceFinished && (
+        <View style={styles.header}>
+          {/* Top info bar */}
+          <View style={styles.headerTop}>
+            <View style={styles.timerSection}>
+              <Text style={styles.timerIcon}>⏱</Text>
+              <Text style={styles.timerText}>{formatElapsedTime(elapsedTime)}</Text>
+            </View>
+            
+            <View style={styles.positionIndicator}>
+              <Text style={styles.positionText}>
+                {currentPosition}{getPositionSuffix(currentPosition)} / {totalPlayers}
+              </Text>
+            </View>
+            
+            <View style={styles.flagSection}>
+              <Text style={styles.flagIcon}>🏁</Text>
+            </View>
           </View>
-          <Text style={styles.metersText}>{Math.round(myMeters)}m</Text>
+
+          {/* Progress Bar with Avatars */}
+          <View style={styles.progressSection}>
+            <View style={styles.progressBarContainer}>
+              <View style={styles.progressBarTrack}>
+                <View style={[styles.progressBarFilled, { width: `${metersToPct(myMeters)}%` }]} />
+              </View>
+              {allPlayers.map((player, index) => {
+                const progress = metersToPct(player.meters);
+                const isPlayer = player.isPlayer;
+                const avatarInitials = getAvatarInitials(player.username);
+                const avatarColor = getColorFromString(player.username);
+                
+                return (
+                  <View
+                    key={player.userId}
+                    style={[
+                      styles.avatarMarker,
+                      { left: `${Math.min(progress, 98)}%` },
+                      isPlayer && styles.playerAvatarMarker
+                    ]}
+                  >
+                    <View style={[styles.avatar, isPlayer && styles.playerAvatar, { backgroundColor: avatarColor }]}>
+                      <Text style={styles.avatarText}>
+                        {isPlayer ? "U" : avatarInitials.substring(0, 1)}
+                      </Text>
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          </View>
         </View>
-      </View>
+      )}
+
+      {/* Middle: Race Visualization (Dark Background) */}
+      <View style={styles.middleSection} />
+
+      {/* Bottom: Control Buttons */}
+      {raceStarted && !raceFinished && (
+        <View style={styles.buttonArea}>
+          <TouchableOpacity
+            style={[
+              styles.tapButton,
+              styles.leftButton,
+              isLocallyEnded && styles.buttonDisabled,
+            ]}
+            onPress={() => handleTap("left")}
+            activeOpacity={0.7}
+            disabled={isLocallyEnded}
+          >
+            <Text style={[styles.buttonLabel, isLocallyEnded && styles.buttonLabelDisabled]}>L</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.tapButton,
+              styles.rightButton,
+              isLocallyEnded && styles.buttonDisabled,
+            ]}
+            onPress={() => handleTap("right")}
+            activeOpacity={0.7}
+            disabled={isLocallyEnded}
+          >
+            <Text style={[styles.buttonLabel, isLocallyEnded && styles.buttonLabelDisabled]}>R</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Countdown Overlay */}
       {countdown !== null && countdown > 0 && (
         <View style={styles.countdownOverlay}>
-          <Text style={styles.countdownText}>{countdown}</Text>
+          <Animated.View
+            style={{
+              transform: [{ scale: countdownScale }],
+              opacity: countdownOpacity,
+            }}
+          >
+            <Text style={styles.countdownText}>{countdown}</Text>
+          </Animated.View>
         </View>
       )}
 
-      {/* Local Early Finish Overlay (waiting for server confirmation) */}
+      {/* "GO!" Overlay */}
+      {countdown === 0 && (
+        <View style={styles.countdownOverlay}>
+          <Animated.View
+            style={{
+              transform: [{ scale: countdownScale }],
+              opacity: countdownOpacity,
+            }}
+          >
+            <Text style={styles.goText}>GO!</Text>
+          </Animated.View>
+        </View>
+      )}
+
+      {/* Race Finish Summary Overlay */}
+      {raceFinished && result && serverResultReceived && (() => {
+        const playerResult = getPlayerResult();
+        if (!playerResult || !user) return null;
+
+        const placement = result.players
+          .sort((a, b) => (b.finalMeters || 0) - (a.finalMeters || 0))
+          .findIndex(p => p.userId === user.id) + 1;
+        
+        const totalRacers = result.players.length;
+        const playerTime = playerResult.finalMeters >= 100 
+          ? (elapsedTime || 0).toFixed(2) 
+          : "N/A";
+        const medal = getMedalForPosition(placement);
+
+        return (
+          <View style={styles.resultOverlay}>
+            {/* Top Section */}
+            <View style={styles.resultTopSection}>
+              <View style={styles.timerSection}>
+                <Text style={styles.timerIcon}>⏱</Text>
+                <Text style={styles.timerText}>{formatElapsedTime(elapsedTime || 0)}</Text>
+              </View>
+              
+              <View style={styles.positionIndicator}>
+                <Text style={styles.positionText}>
+                  {placement}{getPositionSuffix(placement)} / {totalRacers}
+                </Text>
+              </View>
+              
+              <View style={styles.flagSection}>
+                <Text style={styles.flagIcon}>🏁</Text>
+              </View>
+            </View>
+
+            {/* Progress Bar */}
+            <View style={styles.progressSectionTop}>
+              <View style={styles.progressBarContainerTop}>
+                <View style={styles.progressBarTop}>
+                  <View style={[styles.progressBarFilled, { width: `${metersToPct(playerResult.finalMeters || 0)}%` }]} />
+                </View>
+                {result.players.map((p) => {
+                  const progress = metersToPct(p.finalMeters || 0);
+                  const isPlayer = p.userId === user.id;
+                  const avatarInitials = getAvatarInitials(p.email || `Player ${p.userId}`);
+                  const avatarColor = getColorFromString(p.email || `Player ${p.userId}`);
+                  
+                  return (
+                    <View
+                      key={p.userId}
+                      style={[
+                        styles.avatarMarker,
+                        { left: `${Math.min(progress, 98)}%` },
+                        isPlayer && styles.playerAvatarMarker
+                      ]}
+                    >
+                      <View style={[styles.avatar, isPlayer && styles.playerAvatar, { backgroundColor: avatarColor }]}>
+                        <Text style={styles.avatarText}>
+                          {isPlayer ? "U" : avatarInitials.substring(0, 1)}
+                        </Text>
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            </View>
+
+            {/* Middle Section - Dark Background */}
+            <View style={styles.resultMiddleSection} />
+
+            {/* Bottom Results Card */}
+            <View style={styles.resultCard}>
+              <Text style={styles.resultCardTitle}>Race Finished!</Text>
+              
+              <View style={styles.resultCardContent}>
+                <Text style={styles.resultCardSubtitle}>You finished</Text>
+                <Text style={styles.resultCardPosition}>
+                  {placement}{getPositionSuffix(placement)}
+                </Text>
+                
+                <View style={styles.resultCardStats}>
+                  <View style={styles.statItem}>
+                    <Text style={styles.statLabel}>Time</Text>
+                    <Text style={styles.statValue}>{playerTime}s</Text>
+                  </View>
+                  
+                  {medal && (
+                    <View style={styles.statItem}>
+                      <Text style={styles.medalIcon}>{medal}</Text>
+                    </View>
+                  )}
+                </View>
+                
+                <View style={styles.resultCardButtons}>
+                  <TouchableOpacity
+                    style={styles.returnHomeButtonCard}
+                    onPress={handleReturnHome}
+                  >
+                    <Text style={styles.returnHomeButtonText}>Return Home</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity
+                    style={styles.rerunButtonCard}
+                    onPress={handleRerun}
+                  >
+                    <Text style={styles.rerunButtonText}>Rerun</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </View>
+        );
+      })()}
+
+      {/* Local Early Finish Overlay (waiting for server) */}
       {isLocallyEnded && !serverResultReceived && localEndResult && (
         <View style={styles.localEndOverlay}>
           <Text style={styles.localEndTitle}>Race ended — top {localEndResult.threshold} finished</Text>
           <Text style={styles.localEndSubtext}>Waiting for official results...</Text>
         </View>
       )}
-
-      {/* Race Finished Overlay (server authoritative result) */}
-      {raceFinished && result && serverResultReceived && (
-        <View style={styles.resultOverlay}>
-          <Text style={styles.resultText}>{getResultText()}</Text>
-          <Text style={styles.resultSubtext}>
-            {isLocallyEnded && localEndResult ? "Official results updated" : "Returning to queue..."}
-          </Text>
-        </View>
-      )}
-
-      {/* Tap Buttons - Smaller, positioned at bottom third */}
-      {!raceFinished && (
-        <View style={styles.buttonArea}>
-          <View style={styles.buttonRow}>
-            <TouchableOpacity
-              style={[
-                styles.button,
-                styles.leftButton,
-                isLocallyEnded && styles.buttonDisabled,
-              ]}
-              onPress={() => handleTap("left")}
-              activeOpacity={isLocallyEnded ? 1 : 0.7}
-              disabled={isLocallyEnded}
-            >
-              <Text style={[styles.buttonText, isLocallyEnded && styles.buttonTextDisabled]}>
-                LEFT
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.button,
-                styles.rightButton,
-                isLocallyEnded && styles.buttonDisabled,
-              ]}
-              onPress={() => handleTap("right")}
-              activeOpacity={isLocallyEnded ? 1 : 0.7}
-              disabled={isLocallyEnded}
-            >
-              <Text style={[styles.buttonText, isLocallyEnded && styles.buttonTextDisabled]}>
-                RIGHT
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#000",
+    backgroundColor: colors.background, // Dark background
+  },
+  header: {
+    paddingTop: spacing.sp4,
+    paddingBottom: spacing.sp3,
+    paddingHorizontal: spacing.sp6,
+    backgroundColor: colors.background,
+  },
+  headerTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: spacing.sp3,
+  },
+  timerSection: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sp1,
+  },
+  timerIcon: {
+    fontSize: 20,
+    color: colors.text,
+  },
+  timerText: {
+    fontSize: typography.body.fontSize,
+    fontWeight: typography.button.fontWeight,
+    color: colors.text,
+  },
+  positionIndicator: {
+    flex: 1,
+    alignItems: "center",
+  },
+  positionText: {
+    fontSize: typography.bodyLarge.fontSize,
+    fontWeight: typography.button.fontWeight,
+    color: colors.text,
+  },
+  flagSection: {
+    alignItems: "flex-end",
+  },
+  flagIcon: {
+    fontSize: 24,
   },
   progressSection: {
-    paddingTop: 60,
-    paddingHorizontal: 16,
-    paddingBottom: 20,
-    backgroundColor: "#1C1C1E",
-  },
-  playerContainer: {
-    marginBottom: 24,
-  },
-  playerLabel: {
-    fontSize: 16,
-    color: "#999",
-    marginBottom: 8,
-  },
-  myLabel: {
-    color: "#007AFF",
-    fontWeight: "600",
+    paddingTop: spacing.sp2,
   },
   progressBarContainer: {
-    height: 30,
-    backgroundColor: "#2C2C2E",
-    borderRadius: 15,
-    overflow: "hidden",
-    marginBottom: 4,
+    height: 8,
+    backgroundColor: "#1C2A3A",
+    borderRadius: 4,
+    position: "relative",
+    overflow: "visible",
   },
-  progressBar: {
+  progressBarTrack: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
     height: "100%",
-    backgroundColor: "#FF3B30",
-    borderRadius: 15,
+    backgroundColor: "#1C2A3A",
+    borderRadius: 4,
   },
-  myProgressBar: {
-    backgroundColor: "#34C759",
+  progressBarFilled: {
+    height: "100%",
+    backgroundColor: colors.accent, // Electric blue
+    borderRadius: 4,
   },
-  metersText: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#fff",
-    textAlign: "right",
+  avatarMarker: {
+    position: "absolute",
+    top: -12,
+    marginLeft: -16,
+    zIndex: 10,
   },
-  buttonArea: {
-    flex: 1,
-    justifyContent: "flex-end",
-    paddingBottom: 80,
-    paddingHorizontal: 20,
+  playerAvatarMarker: {
+    zIndex: 11,
   },
-  buttonRow: {
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: 20,
-  },
-  button: {
-    width: width * 0.42,
-    height: height * 0.22,
-    borderRadius: 50,
+  avatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.card,
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+    borderWidth: 2,
+    borderColor: "#1C2A3A",
+  },
+  playerAvatar: {
+    borderColor: colors.accent,
+  },
+  avatarText: {
+    fontSize: 10,
+    fontWeight: "bold",
+    color: colors.text,
+  },
+  middleSection: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  buttonArea: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingHorizontal: spacing.sp6,
+    paddingBottom: spacing.sp8,
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+  },
+  tapButton: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
+    borderWidth: 2,
+    borderColor: colors.accent,
+    justifyContent: "center",
+    alignItems: "center",
+    ...shadows.lg,
   },
   leftButton: {
-    backgroundColor: "#1E3A8A",
+    marginRight: spacing.sp2,
   },
   rightButton: {
-    backgroundColor: "#7C2D12",
-  },
-  buttonText: {
-    fontSize: 28,
-    fontWeight: "bold",
-    color: "#fff",
+    marginLeft: spacing.sp2,
   },
   buttonDisabled: {
     opacity: 0.3,
   },
-  buttonTextDisabled: {
+  buttonLabel: {
+    fontSize: 32,
+    fontWeight: "bold",
+    color: colors.accent,
+  },
+  buttonLabelDisabled: {
     opacity: 0.5,
   },
   countdownOverlay: {
@@ -350,14 +666,24 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: "rgba(0, 0, 0, 0.8)",
+    backgroundColor: "rgba(10, 10, 10, 0.95)",
     justifyContent: "center",
     alignItems: "center",
   },
   countdownText: {
     fontSize: 120,
     fontWeight: "bold",
-    color: "#fff",
+    color: colors.accent,
+    textShadowColor: `${colors.accent}80`,
+    textShadowRadius: 16,
+    textShadowOffset: { width: 0, height: 0 },
+  },
+  goText: {
+    fontSize: 96,
+    fontWeight: "bold",
+    color: colors.accent,
+    textShadowColor: `${colors.accent}80`,
+    textShadowRadius: 16,
   },
   localEndOverlay: {
     position: "absolute",
@@ -365,21 +691,21 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: "rgba(0, 0, 0, 0.85)",
+    backgroundColor: "rgba(10, 10, 10, 0.95)",
     justifyContent: "center",
     alignItems: "center",
   },
   localEndTitle: {
-    fontSize: 28,
-    fontWeight: "bold",
-    color: "#FFD700",
-    marginBottom: 16,
+    fontSize: typography.h3.fontSize,
+    fontWeight: typography.h3.fontWeight,
+    color: colors.warning,
+    marginBottom: spacing.sp4,
     textAlign: "center",
-    paddingHorizontal: 24,
+    paddingHorizontal: spacing.sp6,
   },
   localEndSubtext: {
-    fontSize: 16,
-    color: "#999",
+    fontSize: typography.body.fontSize,
+    color: colors.textSecondary,
     textAlign: "center",
   },
   resultOverlay: {
@@ -388,18 +714,118 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: "rgba(0, 0, 0, 0.9)",
-    justifyContent: "center",
+    backgroundColor: "#0A1628", // Dark blue background
+  },
+  resultTopSection: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: spacing.sp6,
+    paddingTop: spacing.sp10,
+    paddingBottom: spacing.sp3,
+  },
+  progressSectionTop: {
+    paddingHorizontal: spacing.sp6,
+    paddingBottom: spacing.sp4,
+  },
+  progressBarContainerTop: {
+    height: 8,
+    backgroundColor: "#1C2A3A",
+    borderRadius: 4,
+    position: "relative",
+    overflow: "visible",
+  },
+  progressBarTop: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: "100%",
+    backgroundColor: "#1C2A3A",
+    borderRadius: 4,
+  },
+  resultMiddleSection: {
+    flex: 1,
+    backgroundColor: "#0A1628",
+  },
+  resultCard: {
+    backgroundColor: "#1C2A3A",
+    borderTopLeftRadius: radii.xl,
+    borderTopRightRadius: radii.xl,
+    padding: spacing.sp6,
+    paddingBottom: spacing.sp10,
+  },
+  resultCardTitle: {
+    fontSize: typography.h2.fontSize,
+    fontWeight: typography.h2.fontWeight,
+    color: colors.text,
+    textAlign: "center",
+    marginBottom: spacing.sp4,
+  },
+  resultCardContent: {
     alignItems: "center",
   },
-  resultText: {
-    fontSize: 36,
-    fontWeight: "bold",
-    color: "#fff",
-    marginBottom: 16,
+  resultCardSubtitle: {
+    fontSize: typography.body.fontSize,
+    color: colors.text,
+    marginBottom: spacing.sp2,
   },
-  resultSubtext: {
-    fontSize: 16,
-    color: "#999",
+  resultCardPosition: {
+    fontSize: 72,
+    fontWeight: "bold",
+    color: colors.accent,
+    marginBottom: spacing.sp6,
+  },
+  resultCardStats: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    width: "100%",
+    marginBottom: spacing.sp8,
+    paddingHorizontal: spacing.sp5,
+  },
+  statItem: {
+    alignItems: "center",
+  },
+  statLabel: {
+    fontSize: typography.bodySmall.fontSize,
+    color: colors.text,
+    marginBottom: spacing.sp1,
+  },
+  statValue: {
+    fontSize: typography.h4.fontSize,
+    fontWeight: typography.h4.fontWeight,
+    color: colors.text,
+  },
+  medalIcon: {
+    fontSize: 32,
+  },
+  resultCardButtons: {
+    flexDirection: "row",
+    gap: spacing.sp3,
+    width: "100%",
+  },
+  returnHomeButtonCard: {
+    flex: 1,
+    backgroundColor: colors.card,
+    borderRadius: radii.card,
+    padding: spacing.sp4,
+    alignItems: "center",
+  },
+  returnHomeButtonText: {
+    color: colors.text,
+    fontSize: typography.body.fontSize,
+    fontWeight: typography.button.fontWeight,
+  },
+  rerunButtonCard: {
+    flex: 1,
+    backgroundColor: colors.accent,
+    borderRadius: radii.card,
+    padding: spacing.sp4,
+    alignItems: "center",
+  },
+  rerunButtonText: {
+    color: colors.text,
+    fontSize: typography.body.fontSize,
+    fontWeight: typography.button.fontWeight,
   },
 });
