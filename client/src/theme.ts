@@ -23,10 +23,10 @@ const basePalette = {
   secondaryDark: "#248A3D",
   secondaryLight: "#5DD97C",
 
-  // Accent - Vibrant orange for highlights
-  accent: "#FF9500",
-  accentDark: "#CC7700",
-  accentLight: "#FFAD33",
+  // Accent - Electric blue for Stitch design
+  accent: "#00E0FF",
+  accentDark: "#00B8D4",
+  accentLight: "#40E6FF",
 
   // Danger - Red for warnings/errors
   danger: "#FF3B30",
@@ -87,19 +87,19 @@ const lightColors = {
   overlayLight: "rgba(0, 0, 0, 0.3)",
 };
 
-// Dark mode colors
+// Dark mode colors (Stitch design)
 const darkColors = {
   primary: basePalette.primaryLight,
   secondary: basePalette.secondaryLight,
-  accent: basePalette.accentLight,
+  accent: basePalette.accent, // Electric blue #00E0FF
   success: basePalette.secondaryLight,
   warning: basePalette.warningLight,
   danger: basePalette.dangerLight,
   
-  // Backgrounds
-  background: basePalette.black,
+  // Backgrounds - Dark theme for Stitch
+  background: "#0A0A0A", // Very dark background
   surface: basePalette.gray900,
-  card: basePalette.gray800,
+  card: "#121212", // Slightly lighter than background
   
   // Text
   text: basePalette.white,
@@ -430,7 +430,7 @@ export function darken(hex: string, percent: number): string {
 
 // ===== THEME OBJECT =====
 
-let currentMode: ThemeMode = "light";
+let currentMode: ThemeMode = "dark"; // Default to dark mode for Stitch design
 
 /**
  * Get current theme colors based on mode

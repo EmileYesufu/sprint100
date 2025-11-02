@@ -1,5 +1,5 @@
 /**
- * Profile Screen
+ * Profile Screen - Stitch Design
  * Displays user profile information, Elo rating, and match history
  */
 
@@ -10,24 +10,37 @@ import {
   StyleSheet,
   FlatList,
   ActivityIndicator,
+  TouchableOpacity,
+  Animated,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "@/hooks/useAuth";
 import { getServerUrl } from "@/config";
 import { formatElo, formatDate } from "@/utils/formatting";
+import { getPositionSuffix, getMedalForPosition, getAvatarInitials, getColorFromString } from "@/utils/uiHelpers";
 import type { MatchHistoryEntry } from "@/types";
-import { colors, typography, spacing } from "@/theme";
+import { colors, typography, spacing, shadows, radii } from "@/theme";
 
 export default function ProfileScreen() {
-  const { user, token } = useAuth();
+  const { user, token, logout } = useAuth();
   const [matchHistory, setMatchHistory] = useState<MatchHistoryEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const fadeAnim = React.useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (user) {
       loadMatchHistory();
     }
   }, [user]);
+
+  // Fade-in animation on mount
+  useEffect(() => {
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+  }, []);
 
   const loadMatchHistory = async () => {
     if (!user || !token) return;
@@ -43,10 +56,12 @@ export default function ProfileScreen() {
 
       if (response.ok) {
         const matches = await response.json();
-        // Transform server response to MatchHistoryEntry format
+        // Transform server response to MatchHistoryEntry format with placement
         const formattedMatches: MatchHistoryEntry[] = matches.map((match: any) => {
+          // Get placement (1st, 2nd, 3rd, etc.)
+          const placement = match.placement || null;
           // Determine if user won (placement 1 means first place)
-          const won = match.placement === 1;
+          const won = placement === 1;
           // Get first opponent for display (multiplayer races have multiple opponents)
           const opponent = match.opponents && match.opponents.length > 0 
             ? match.opponents[0] 
@@ -59,6 +74,7 @@ export default function ProfileScreen() {
             eloDelta: match.eloDelta || 0,
             finalMeters: 100, // Standard race distance (server doesn't return this)
             createdAt: match.timestamp || new Date().toISOString(),
+            placement: placement, // Add placement for display
           };
         });
         setMatchHistory(formattedMatches);
@@ -72,6 +88,10 @@ export default function ProfileScreen() {
     }
   };
 
+  const handleLogout = async () => {
+    await logout();
+  };
+
   if (!user) {
     return (
       <View style={styles.container}>
@@ -80,59 +100,93 @@ export default function ProfileScreen() {
     );
   }
 
-  // Header shows logged-in username from auth context
   const displayUsername = user.username || "Loading...";
+  const avatarInitials = getAvatarInitials(displayUsername);
+  const avatarColor = getColorFromString(displayUsername);
 
   return (
-    // SafeAreaView added to avoid iPhone notch/HUD
-    <SafeAreaView style={styles.container}>
-      {/* Profile Header */}
-      <View style={styles.header}>
-        {/* Header shows logged-in username only */}
+    <SafeAreaView style={styles.container} edges={["top"]}>
+      {/* Profile Header with Dark Background */}
+      <Animated.View style={[styles.header, { opacity: fadeAnim }]}>
+        {/* Avatar */}
+        <View style={styles.avatarContainer}>
+          <View style={[styles.avatar, { borderColor: "#E8D5C4" }]}>
+            <View style={[styles.avatarInner, { backgroundColor: avatarColor }]}>
+              <Text style={styles.avatarText}>{avatarInitials}</Text>
+            </View>
+          </View>
+        </View>
+        
+        {/* Username */}
         <Text style={styles.username}>{displayUsername}</Text>
         
-        {/* Display Name (non-editable) */}
-        {user.displayName && (
-          <Text style={styles.displayName}>{user.displayName}</Text>
-        )}
-        
-        <View style={styles.eloContainer}>
-          <Text style={styles.eloLabel}>Elo Rating</Text>
-          <Text style={styles.eloValue}>{formatElo(user.elo)}</Text>
-        </View>
-      </View>
+        {/* ELO Rating */}
+        <Text style={styles.eloRating}>ELO {formatElo(user.elo)}</Text>
+      </Animated.View>
 
-      {/* Match History */}
+      {/* Match History Section */}
       <View style={styles.historySection}>
         <Text style={styles.sectionTitle}>Match History</Text>
         
         {isLoading ? (
-          <ActivityIndicator size="large" color="#007AFF" style={styles.loader} />
+          <ActivityIndicator size="large" color={colors.accent} style={styles.loader} />
         ) : matchHistory.length === 0 ? (
           <Text style={styles.emptyText}>No matches played yet</Text>
         ) : (
           <FlatList
             data={matchHistory}
             keyExtractor={(item) => item.matchId.toString()}
-            renderItem={({ item }) => (
-              <View style={styles.matchItem}>
-                <View style={styles.matchHeader}>
-                  <Text style={[styles.matchResult, item.won ? styles.won : styles.lost]}>
-                    {item.won ? "WIN" : "LOSS"}
-                  </Text>
-                  <Text style={styles.matchElo}>
-                    {item.eloDelta > 0 ? "+" : ""}
-                    {item.eloDelta} Elo
-                  </Text>
+            contentContainerStyle={styles.listContainer}
+            renderItem={({ item, index }) => {
+              const placement = (item as any).placement as number | null;
+              const medal = placement ? getMedalForPosition(placement) : null;
+              const positionText = placement ? `${placement}${getPositionSuffix(placement)} Place` : "N/A";
+              const opponentInitials = getAvatarInitials(item.opponentEmail);
+              const opponentColor = getColorFromString(item.opponentEmail);
+              
+              return (
+                <View style={[styles.matchCard, shadows.base]}>
+                  {/* Avatar on left */}
+                  <View style={styles.matchAvatarContainer}>
+                    <View style={[styles.matchAvatar, { backgroundColor: opponentColor }]}>
+                      <Text style={styles.matchAvatarText}>{opponentInitials}</Text>
+                    </View>
+                  </View>
+                  
+                  {/* Match Info */}
+                  <View style={styles.matchInfo}>
+                    <Text style={styles.matchOpponent}>vs {item.opponentEmail}</Text>
+                    <Text style={styles.matchResult}>{positionText}</Text>
+                  </View>
+                  
+                  {/* ELO Change and Medal on right */}
+                  <View style={styles.matchRight}>
+                    <Text style={[
+                      styles.matchElo,
+                      item.eloDelta > 0 ? styles.eloPositive : styles.eloNegative
+                    ]}>
+                      {item.eloDelta > 0 ? "+" : ""}{item.eloDelta}
+                    </Text>
+                    {medal && (
+                      <Text style={styles.matchMedal}>{medal}</Text>
+                    )}
+                  </View>
                 </View>
-                <Text style={styles.matchOpponent}>vs {item.opponentEmail}</Text>
-                <Text style={styles.matchDetails}>
-                  {Math.round(item.finalMeters)}m · {formatDate(item.createdAt)}
-                </Text>
-              </View>
-            )}
+              );
+            }}
           />
         )}
+      </View>
+
+      {/* Logout Button */}
+      <View style={styles.footer}>
+        <TouchableOpacity
+          style={styles.logoutButton}
+          onPress={handleLogout}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.logoutText}>Logout</Text>
+        </TouchableOpacity>
       </View>
     </SafeAreaView>
   );
@@ -141,99 +195,153 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f5f5f5",
+    backgroundColor: colors.background, // Dark background
   },
   header: {
-    backgroundColor: "#fff",
-    padding: 24,
+    backgroundColor: colors.background, // Dark gradient base
+    paddingTop: spacing.sp6,
+    paddingBottom: spacing.sp6,
+    paddingHorizontal: spacing.sp6,
     alignItems: "center",
-    borderBottomWidth: 1,
-    borderBottomColor: "#e0e0e0",
+  },
+  avatarContainer: {
+    marginBottom: spacing.sp4,
+  },
+  avatar: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    borderWidth: 2,
+    borderColor: "#E8D5C4", // Light pinkish-beige border
+    justifyContent: "center",
+    alignItems: "center",
+    overflow: "hidden",
+  },
+  avatarInner: {
+    width: "100%",
+    height: "100%",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  avatarText: {
+    fontSize: 32,
+    fontWeight: "bold",
+    color: colors.text,
   },
   username: {
     fontSize: typography.h2.fontSize,
     fontWeight: typography.h2.fontWeight,
-    color: colors.primary,
+    color: colors.text,
     marginBottom: spacing.sp2,
+    textAlign: "center",
   },
-  displayName: {
-    fontSize: typography.bodyLarge.fontSize,
-    fontWeight: typography.bodyLarge.fontWeight,
+  eloRating: {
+    fontSize: typography.body.fontSize,
+    fontWeight: typography.body.fontWeight,
     color: colors.textSecondary,
-    marginBottom: spacing.sp4,
-  },
-  eloContainer: {
-    alignItems: "center",
-  },
-  eloLabel: {
-    fontSize: 16,
-    color: "#999",
-    marginBottom: 4,
-  },
-  eloValue: {
-    fontSize: 36,
-    fontWeight: "bold",
-    color: "#007AFF",
+    textAlign: "center",
   },
   historySection: {
     flex: 1,
-    padding: 16,
+    paddingHorizontal: spacing.sp6,
+    paddingTop: spacing.sp4,
   },
   sectionTitle: {
-    fontSize: 20,
-    fontWeight: "600",
-    marginBottom: 12,
-    color: "#333",
+    fontSize: typography.h3.fontSize,
+    fontWeight: typography.h3.fontWeight,
+    color: colors.text,
+    marginBottom: spacing.sp4,
+  },
+  listContainer: {
+    paddingBottom: spacing.sp6,
   },
   loader: {
-    marginTop: 32,
+    marginTop: spacing.sp8,
   },
   emptyText: {
-    fontSize: 16,
-    color: "#999",
+    fontSize: typography.body.fontSize,
+    color: colors.textSecondary,
     textAlign: "center",
-    marginTop: 32,
+    marginTop: spacing.sp8,
   },
-  matchItem: {
-    backgroundColor: "#fff",
-    padding: 16,
-    borderRadius: 8,
-    marginBottom: 8,
-  },
-  matchHeader: {
+  matchCard: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 8,
+    backgroundColor: colors.card,
+    padding: spacing.sp4,
+    borderRadius: radii.card,
+    marginBottom: spacing.sp2,
+    ...shadows.base,
   },
-  matchResult: {
-    fontSize: 16,
+  matchAvatarContainer: {
+    marginRight: spacing.sp4,
+  },
+  matchAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  matchAvatarText: {
+    fontSize: 18,
     fontWeight: "bold",
+    color: colors.text,
   },
-  won: {
-    color: "#34C759",
-  },
-  lost: {
-    color: "#FF3B30",
-  },
-  matchElo: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#007AFF",
+  matchInfo: {
+    flex: 1,
+    marginRight: spacing.sp2,
   },
   matchOpponent: {
-    fontSize: 14,
-    color: "#333",
-    marginBottom: 4,
+    fontSize: typography.body.fontSize,
+    fontWeight: typography.body.fontWeight,
+    color: colors.text,
+    marginBottom: spacing.sp1,
   },
-  matchDetails: {
-    fontSize: 12,
-    color: "#999",
+  matchResult: {
+    fontSize: typography.bodySmall.fontSize,
+    color: colors.textSecondary,
+  },
+  matchRight: {
+    alignItems: "flex-end",
+  },
+  matchElo: {
+    fontSize: typography.body.fontSize,
+    fontWeight: typography.button.fontWeight,
+    marginBottom: spacing.sp1,
+  },
+  eloPositive: {
+    color: colors.success, // Green for positive
+  },
+  eloNegative: {
+    color: colors.danger, // Red for negative
+  },
+  matchMedal: {
+    fontSize: 24,
+  },
+  footer: {
+    paddingHorizontal: spacing.sp6,
+    paddingBottom: spacing.sp8,
+    paddingTop: spacing.sp4,
+    alignItems: "center",
+  },
+  logoutButton: {
+    paddingHorizontal: spacing.sp8,
+    paddingVertical: spacing.sp3,
+    borderRadius: radii.button,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: "transparent",
+  },
+  logoutText: {
+    fontSize: typography.body.fontSize,
+    fontWeight: typography.button.fontWeight,
+    color: colors.text,
   },
   errorText: {
-    fontSize: 16,
-    color: "#FF3B30",
+    fontSize: typography.body.fontSize,
+    color: colors.danger,
     textAlign: "center",
-    marginTop: 24,
+    marginTop: spacing.sp6,
   },
 });
