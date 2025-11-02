@@ -21,7 +21,8 @@ import { getServerUrl } from "@/config";
 import { formatElo } from "@/utils/formatting";
 import { getAvatarInitials, getColorFromString } from "@/utils/uiHelpers";
 import type { LeaderboardEntry } from "@/types";
-import { colors, typography, spacing, shadows, radii } from "@/theme";
+import { colors, typography, spacing, shadows, radii, accessibility } from "@/theme";
+import { useReducedMotion } from "@/hooks/useReducedMotion";
 
 export default function LeaderboardScreen() {
   const { token, user } = useAuth();
@@ -29,19 +30,24 @@ export default function LeaderboardScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
+  const reduceMotion = useReducedMotion();
 
   useEffect(() => {
     loadLeaderboard();
   }, []);
 
-  // Fade-in animation on mount
+  // Fade-in animation on mount (skip if reduce motion enabled)
   useEffect(() => {
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 300,
-      useNativeDriver: true,
-    }).start();
-  }, []);
+    if (reduceMotion) {
+      fadeAnim.setValue(1);
+    } else {
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [reduceMotion]);
 
   const loadLeaderboard = async (isRefresh = false) => {
     if (!token) return;
@@ -103,12 +109,31 @@ export default function LeaderboardScreen() {
           style={styles.backButton}
           onPress={() => navigation.goBack()}
           activeOpacity={0.7}
+          accessibilityLabel="Back"
+          accessibilityHint="Returns to previous screen"
+          accessibilityRole="button"
+          hitSlop={accessibility.hitSlop}
         >
-          <Text style={styles.backIcon}>←</Text>
+          <Text 
+            style={styles.backIcon}
+            allowFontScaling={accessibility.allowFontScaling}
+          >
+            ←
+          </Text>
         </TouchableOpacity>
         <View style={styles.headerContent}>
-          <Text style={styles.title}>Sprint100 Leaderboard</Text>
-          <Text style={styles.subtitle}>Top Racers Worldwide</Text>
+          <Text 
+            style={styles.title}
+            allowFontScaling={accessibility.allowFontScaling}
+          >
+            Sprint100 Leaderboard
+          </Text>
+          <Text 
+            style={styles.subtitle}
+            allowFontScaling={accessibility.allowFontScaling}
+          >
+            Top Racers Worldwide
+          </Text>
         </View>
         <View style={styles.headerSpacer} />
       </Animated.View>
@@ -129,7 +154,12 @@ export default function LeaderboardScreen() {
             />
           }
           ListEmptyComponent={
-            <Text style={styles.emptyText}>No players on leaderboard yet</Text>
+            <Text 
+              style={styles.emptyText}
+              allowFontScaling={accessibility.allowFontScaling}
+            >
+              No players on leaderboard yet
+            </Text>
           }
           renderItem={({ item }) => {
             const isCurrentUser = item.userId === user?.id;
@@ -143,13 +173,18 @@ export default function LeaderboardScreen() {
                   styles.playerRow,
                   isCurrentUser && styles.currentUserRow,
                 ]}
+                accessibilityRole="text"
+                accessibilityLabel={`Rank ${item.rank}, ${isCurrentUser ? 'You' : displayName}, ELO ${formatElo(item.elo).replace(/,/g, ' ')}`}
               >
                 {/* Left accent bar for current user */}
                 {isCurrentUser && <View style={styles.accentBar} />}
                 
                 {/* Rank number on left */}
                 <View style={styles.rankContainer}>
-                  <Text style={[styles.rankNumber, isCurrentUser && styles.currentUserRank]}>
+                  <Text 
+                    style={[styles.rankNumber, isCurrentUser && styles.currentUserRank]}
+                    allowFontScaling={accessibility.allowFontScaling}
+                  >
                     {item.rank}
                   </Text>
                 </View>
@@ -157,16 +192,27 @@ export default function LeaderboardScreen() {
                 {/* Avatar */}
                 <View style={styles.avatarContainer}>
                   <View style={[styles.avatar, { backgroundColor: avatarColor }]}>
-                    <Text style={styles.avatarText}>{avatarInitials}</Text>
+                    <Text 
+                      style={styles.avatarText}
+                      allowFontScaling={accessibility.allowFontScaling}
+                    >
+                      {avatarInitials}
+                    </Text>
                   </View>
                 </View>
                 
                 {/* Username and ELO */}
                 <View style={styles.playerInfo}>
-                  <Text style={[styles.playerUsername, isCurrentUser && styles.currentUserText]}>
+                  <Text 
+                    style={[styles.playerUsername, isCurrentUser && styles.currentUserText]}
+                    allowFontScaling={accessibility.allowFontScaling}
+                  >
                     {isCurrentUser ? "You" : displayName}
                   </Text>
-                  <Text style={[styles.playerElo, isCurrentUser && styles.currentUserText]}>
+                  <Text 
+                    style={[styles.playerElo, isCurrentUser && styles.currentUserText]}
+                    allowFontScaling={accessibility.allowFontScaling}
+                  >
                     ELO: {formatElo(item.elo)}
                   </Text>
                 </View>

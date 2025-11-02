@@ -19,13 +19,15 @@ import { getServerUrl } from "@/config";
 import { formatElo, formatDate } from "@/utils/formatting";
 import { getPositionSuffix, getMedalForPosition, getAvatarInitials, getColorFromString } from "@/utils/uiHelpers";
 import type { MatchHistoryEntry } from "@/types";
-import { colors, typography, spacing, shadows, radii } from "@/theme";
+import { colors, typography, spacing, shadows, radii, accessibility } from "@/theme";
+import { useReducedMotion } from "@/hooks/useReducedMotion";
 
 export default function ProfileScreen() {
   const { user, token, logout } = useAuth();
   const [matchHistory, setMatchHistory] = useState<MatchHistoryEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const fadeAnim = React.useRef(new Animated.Value(0)).current;
+  const reduceMotion = useReducedMotion();
 
   useEffect(() => {
     if (user) {
@@ -33,14 +35,18 @@ export default function ProfileScreen() {
     }
   }, [user]);
 
-  // Fade-in animation on mount
+  // Fade-in animation on mount (skip if reduce motion enabled)
   useEffect(() => {
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 300,
-      useNativeDriver: true,
-    }).start();
-  }, []);
+    if (reduceMotion) {
+      fadeAnim.setValue(1);
+    } else {
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [reduceMotion]);
 
   const loadMatchHistory = async () => {
     if (!user || !token) return;
@@ -95,7 +101,12 @@ export default function ProfileScreen() {
   if (!user) {
     return (
       <View style={styles.container}>
-        <Text style={styles.errorText}>User not loaded</Text>
+        <Text 
+          style={styles.errorText}
+          allowFontScaling={accessibility.allowFontScaling}
+        >
+          User not loaded
+        </Text>
       </View>
     );
   }
@@ -112,7 +123,12 @@ export default function ProfileScreen() {
         <View style={styles.avatarContainer}>
           <View style={[styles.avatar, { borderColor: "#E8D5C4" }]}>
             <View style={[styles.avatarInner, { backgroundColor: avatarColor }]}>
-              <Text style={styles.avatarText}>{avatarInitials}</Text>
+              <Text 
+                style={styles.avatarText}
+                allowFontScaling={accessibility.allowFontScaling}
+              >
+                {avatarInitials}
+              </Text>
             </View>
           </View>
         </View>
@@ -121,17 +137,34 @@ export default function ProfileScreen() {
         <Text style={styles.username}>{displayUsername}</Text>
         
         {/* ELO Rating */}
-        <Text style={styles.eloRating}>ELO {formatElo(user.elo)}</Text>
+        <Text 
+          style={styles.eloRating}
+          accessibilityLabel={`ELO rating, ${formatElo(user.elo).replace(/,/g, ' ')}`}
+          accessibilityRole="text"
+          allowFontScaling={accessibility.allowFontScaling}
+        >
+          ELO {formatElo(user.elo)}
+        </Text>
       </Animated.View>
 
       {/* Match History Section */}
       <View style={styles.historySection}>
-        <Text style={styles.sectionTitle}>Match History</Text>
+        <Text 
+          style={styles.sectionTitle}
+          allowFontScaling={accessibility.allowFontScaling}
+        >
+          Match History
+        </Text>
         
         {isLoading ? (
           <ActivityIndicator size="large" color={colors.accent} style={styles.loader} />
         ) : matchHistory.length === 0 ? (
-          <Text style={styles.emptyText}>No matches played yet</Text>
+          <Text 
+            style={styles.emptyText}
+            allowFontScaling={accessibility.allowFontScaling}
+          >
+            No matches played yet
+          </Text>
         ) : (
           <FlatList
             data={matchHistory}
@@ -145,30 +178,57 @@ export default function ProfileScreen() {
               const opponentColor = getColorFromString(item.opponentEmail);
               
               return (
-                <View style={[styles.matchCard, shadows.base]}>
+                <View 
+                  style={[styles.matchCard, shadows.base]}
+                  accessibilityRole="text"
+                  accessibilityLabel={`Match ${index + 1}, ${positionText}, versus ${item.opponentEmail}, ELO change ${item.eloDelta > 0 ? 'plus' : ''}${item.eloDelta}`}
+                >
                   {/* Avatar on left */}
                   <View style={styles.matchAvatarContainer}>
                     <View style={[styles.matchAvatar, { backgroundColor: opponentColor }]}>
-                      <Text style={styles.matchAvatarText}>{opponentInitials}</Text>
+                      <Text 
+                        style={styles.matchAvatarText}
+                        allowFontScaling={accessibility.allowFontScaling}
+                      >
+                        {opponentInitials}
+                      </Text>
                     </View>
                   </View>
                   
                   {/* Match Info */}
                   <View style={styles.matchInfo}>
-                    <Text style={styles.matchOpponent}>vs {item.opponentEmail}</Text>
-                    <Text style={styles.matchResult}>{positionText}</Text>
+                    <Text 
+                      style={styles.matchOpponent}
+                      allowFontScaling={accessibility.allowFontScaling}
+                    >
+                      vs {item.opponentEmail}
+                    </Text>
+                    <Text 
+                      style={styles.matchResult}
+                      allowFontScaling={accessibility.allowFontScaling}
+                    >
+                      {positionText}
+                    </Text>
                   </View>
                   
                   {/* ELO Change and Medal on right */}
                   <View style={styles.matchRight}>
-                    <Text style={[
-                      styles.matchElo,
-                      item.eloDelta > 0 ? styles.eloPositive : styles.eloNegative
-                    ]}>
+                    <Text 
+                      style={[
+                        styles.matchElo,
+                        item.eloDelta > 0 ? styles.eloPositive : styles.eloNegative
+                      ]}
+                      allowFontScaling={accessibility.allowFontScaling}
+                    >
                       {item.eloDelta > 0 ? "+" : ""}{item.eloDelta}
                     </Text>
                     {medal && (
-                      <Text style={styles.matchMedal}>{medal}</Text>
+                      <Text 
+                        style={styles.matchMedal}
+                        allowFontScaling={accessibility.allowFontScaling}
+                      >
+                        {medal}
+                      </Text>
                     )}
                   </View>
                 </View>
@@ -184,8 +244,17 @@ export default function ProfileScreen() {
           style={styles.logoutButton}
           onPress={handleLogout}
           activeOpacity={0.7}
+          accessibilityLabel="Logout"
+          accessibilityHint="Signs you out of your account"
+          accessibilityRole="button"
+          hitSlop={accessibility.hitSlop}
         >
-          <Text style={styles.logoutText}>Logout</Text>
+          <Text 
+            style={styles.logoutText}
+            allowFontScaling={accessibility.allowFontScaling}
+          >
+            Logout
+          </Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>

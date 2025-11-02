@@ -25,7 +25,8 @@ import { getPositionSuffix, getMedalForPosition, getAvatarInitials, getColorFrom
 import type { RaceUpdate, MatchResult, PlayerState, LocalEndResult } from "@/types";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { RaceStackParamList } from "@/navigation/AppNavigator";
-import { colors, typography, spacing, shadows, radii } from "@/theme";
+import { colors, typography, spacing, shadows, radii, accessibility } from "@/theme";
+import { useReducedMotion } from "@/hooks/useReducedMotion";
 
 type Props = NativeStackScreenProps<RaceStackParamList, "Race">;
 
@@ -42,6 +43,7 @@ export default function RaceScreen({ route, navigation }: Props) {
   const { matchId, opponent } = route.params;
   const { user } = useAuth();
   const { socket } = useSocket();
+  const reduceMotion = useReducedMotion();
 
   const [countdown, setCountdown] = useState<number | null>(3);
   const [raceStarted, setRaceStarted] = useState(false);
@@ -70,23 +72,32 @@ export default function RaceScreen({ route, navigation }: Props) {
   useEffect(() => {
     if (countdown === null || countdown <= 0) {
       if (countdown === 0) {
-        // "GO!" moment
-        Animated.sequence([
-          Animated.timing(countdownAnim, {
-            toValue: 1,
-            duration: 200,
-            useNativeDriver: true,
-          }),
-          Animated.timing(countdownAnim, {
-            toValue: 0,
-            duration: 300,
-            useNativeDriver: true,
-          }),
-        ]).start(() => {
-          setRaceStarted(true);
-          setRaceStartTime(Date.now());
-          setCountdown(null);
-        });
+        // "GO!" moment (skip animation if reduce motion is enabled)
+        if (reduceMotion) {
+          countdownAnim.setValue(1);
+          setTimeout(() => {
+            setRaceStarted(true);
+            setRaceStartTime(Date.now());
+            setCountdown(null);
+          }, 500);
+        } else {
+          Animated.sequence([
+            Animated.timing(countdownAnim, {
+              toValue: 1,
+              duration: 200,
+              useNativeDriver: true,
+            }),
+            Animated.timing(countdownAnim, {
+              toValue: 0,
+              duration: 300,
+              useNativeDriver: true,
+            }),
+          ]).start(() => {
+            setRaceStarted(true);
+            setRaceStartTime(Date.now());
+            setCountdown(null);
+          });
+        }
       } else {
         setRaceStarted(true);
         setRaceStartTime(Date.now());
@@ -95,28 +106,32 @@ export default function RaceScreen({ route, navigation }: Props) {
       return;
     }
 
-    // Animate countdown number
-    countdownAnim.setValue(0);
-    Animated.sequence([
-      Animated.timing(countdownAnim, {
-        toValue: 1,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-      Animated.delay(400),
-      Animated.timing(countdownAnim, {
-        toValue: 0,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-    ]).start();
+    // Animate countdown number (skip animation if reduce motion is enabled)
+    if (reduceMotion) {
+      countdownAnim.setValue(1); // Just show it, no animation
+    } else {
+      countdownAnim.setValue(0);
+      Animated.sequence([
+        Animated.timing(countdownAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.delay(400),
+        Animated.timing(countdownAnim, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
 
     const timer = setTimeout(() => {
       setCountdown(countdown - 1);
     }, 1000);
 
     return () => clearTimeout(timer);
-  }, [countdown]);
+  }, [countdown, reduceMotion]);
 
   // Track elapsed time during race
   useEffect(() => {
@@ -349,8 +364,18 @@ export default function RaceScreen({ route, navigation }: Props) {
             onPress={() => handleTap("left")}
             activeOpacity={0.7}
             disabled={isLocallyEnded}
+            accessibilityLabel="Tap Left"
+            accessibilityHint="Increases your running pace when you tap the left button"
+            accessibilityRole="button"
+            accessibilityState={{ disabled: isLocallyEnded }}
+            hitSlop={accessibility.hitSlop}
           >
-            <Text style={[styles.buttonLabel, isLocallyEnded && styles.buttonLabelDisabled]}>L</Text>
+            <Text 
+              style={[styles.buttonLabel, isLocallyEnded && styles.buttonLabelDisabled]}
+              allowFontScaling={accessibility.allowFontScaling}
+            >
+              L
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -362,8 +387,18 @@ export default function RaceScreen({ route, navigation }: Props) {
             onPress={() => handleTap("right")}
             activeOpacity={0.7}
             disabled={isLocallyEnded}
+            accessibilityLabel="Tap Right"
+            accessibilityHint="Increases your running pace when you tap the right button"
+            accessibilityRole="button"
+            accessibilityState={{ disabled: isLocallyEnded }}
+            hitSlop={accessibility.hitSlop}
           >
-            <Text style={[styles.buttonLabel, isLocallyEnded && styles.buttonLabelDisabled]}>R</Text>
+            <Text 
+              style={[styles.buttonLabel, isLocallyEnded && styles.buttonLabelDisabled]}
+              allowFontScaling={accessibility.allowFontScaling}
+            >
+              R
+            </Text>
           </TouchableOpacity>
         </View>
       )}

@@ -101,10 +101,10 @@ const darkColors = {
   surface: basePalette.gray900,
   card: "#121212", // Slightly lighter than background
   
-  // Text
+  // Text - Improved contrast for WCAG 2.1 AA compliance (4.5:1 minimum)
   text: basePalette.white,
-  textSecondary: basePalette.gray400,
-  textMuted: basePalette.gray500,
+  textSecondary: "#CCCCCC", // Changed from gray400 (#A3A3A3) for better contrast
+  textMuted: "#B0B0B0", // Changed from gray500 for better contrast
   textInverse: basePalette.gray900,
   
   // UI Elements
@@ -324,8 +324,8 @@ export const elevation = shadows; // Alias for consistency
 
 export const components = {
   button: {
-    height: 48,
-    heightSmall: 36,
+    height: 48, // ≥44px for accessibility
+    heightSmall: 44, // Minimum touch target size
     heightLarge: 56,
     borderRadius: radii.button,
   },
@@ -344,6 +344,32 @@ export const components = {
   tabBar: {
     height: 60,
   },
+};
+
+// ===== ACCESSIBILITY TOKENS =====
+// WCAG 2.1 AA compliance standards
+
+export const accessibility = {
+  // Minimum contrast ratios (WCAG 2.1 AA)
+  minContrastRatio: {
+    normal: 4.5, // Normal text (≤18pt regular, ≤14pt bold)
+    large: 3.0, // Large text (>18pt regular, >14pt bold)
+  },
+  
+  // Minimum touch target size (iOS and Android guidelines)
+  minTouchTarget: 44, // 44×44 points/pixels
+  
+  // Default hitSlop for smaller interactive elements
+  hitSlop: {
+    top: 10,
+    bottom: 10,
+    left: 10,
+    right: 10,
+  },
+  
+  // Text scaling
+  allowFontScaling: true,
+  adjustsFontSizeToFit: true,
 };
 
 // ===== HELPER FUNCTIONS =====
@@ -451,6 +477,7 @@ export const theme = {
   shadows,
   elevation,
   components,
+  accessibility,
   
   /**
    * Toggle between light and dark mode
