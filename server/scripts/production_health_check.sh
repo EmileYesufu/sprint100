@@ -1,7 +1,12 @@
 #!/bin/bash
+# ------------------------------------------------------------
+# Script Name: production_health_check.sh
+# Description: Comprehensive health checks for production server
+# Usage: ./production_health_check.sh
+# Dependencies: curl, jq (optional), SERVER_URL environment variable
+# ------------------------------------------------------------
 
-# Sprint100 Production Health Check Script
-# This script performs comprehensive health checks on the production server
+set -euo pipefail
 
 echo "🏥 Sprint100 Production Health Check"
 echo "===================================="

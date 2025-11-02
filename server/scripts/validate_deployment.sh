@@ -1,7 +1,12 @@
 #!/bin/bash
+# ------------------------------------------------------------
+# Script Name: validate_deployment.sh
+# Description: Validates production deployment configuration
+# Usage: ./validate_deployment.sh
+# Dependencies: prisma, DATABASE_URL, JWT_SECRET environment variables
+# ------------------------------------------------------------
 
-# Sprint100 Production Deployment Validation Script
-# This script validates the production deployment configuration
+set -euo pipefail
 
 echo "🚀 Sprint100 Production Deployment Validation"
 echo "=============================================="

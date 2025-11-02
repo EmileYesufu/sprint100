@@ -1,9 +1,12 @@
 #!/bin/bash
+# ------------------------------------------------------------
+# Script Name: db_backup.sh
+# Description: Creates timestamped PostgreSQL database backups with logging
+# Usage: ./db_backup.sh
+# Dependencies: pg_dump, DATABASE_URL environment variable
+# ------------------------------------------------------------
 
-# Sprint100 Database Backup Script
-# Creates a timestamped backup of the PostgreSQL database with logging
-
-set -e  # Exit on any error
+set -euo pipefail
 
 # Configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

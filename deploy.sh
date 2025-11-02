@@ -1,9 +1,12 @@
 #!/bin/bash
-
-# Sprint100 Deployment Script
+# ------------------------------------------------------------
+# Script Name: deploy.sh
+# Description: Multi-platform deployment automation (render/railway/heroku/docker)
 # Usage: ./deploy.sh [render|railway|heroku|docker]
+# Dependencies: npm, git, platform-specific CLIs (optional)
+# ------------------------------------------------------------
 
-set -e
+set -euo pipefail
 
 DEPLOY_TARGET=${1:-render}
 

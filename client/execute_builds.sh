@@ -1,9 +1,12 @@
 #!/bin/bash
+# ------------------------------------------------------------
+# Script Name: execute_builds.sh
+# Description: EAS build and submit automation for iOS and Android
+# Usage: ./execute_builds.sh
+# Dependencies: eas-cli, jq, referenced in client/package.json as "build:release"
+# ------------------------------------------------------------
 
-# Sprint100 EAS Build and Submit Automation Script
-# This script builds and submits the app for both iOS and Android platforms
-
-set -e  # Exit on any error
+set -euo pipefail
 
 # Colors for output
 RED='\033[0;31m'

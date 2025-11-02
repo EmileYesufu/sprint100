@@ -1,9 +1,12 @@
 #!/bin/bash
+# ------------------------------------------------------------
+# Script Name: db_restore.sh
+# Description: Restores PostgreSQL database from a backup file
+# Usage: ./db_restore.sh <backup_filename.sql>
+# Dependencies: psql, DATABASE_URL environment variable, backup files
+# ------------------------------------------------------------
 
-# Sprint100 Database Restore Script
-# Restores a PostgreSQL database from a backup file
-
-set -e  # Exit on any error
+set -euo pipefail
 
 # Configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

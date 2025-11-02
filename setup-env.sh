@@ -1,7 +1,12 @@
 #!/bin/bash
+# ------------------------------------------------------------
+# Script Name: setup-env.sh
+# Description: Sets up environment files for both server and client
+# Usage: ./setup-env.sh
+# Dependencies: npm, .env.example files
+# ------------------------------------------------------------
 
-# Sprint100 Environment Setup Script
-# This script sets up environment files for both server and client
+set -euo pipefail
 
 echo "🚀 Setting up Sprint100 environment files..."
 

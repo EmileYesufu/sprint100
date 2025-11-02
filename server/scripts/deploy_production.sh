@@ -1,7 +1,12 @@
 #!/bin/bash
+# ------------------------------------------------------------
+# Script Name: deploy_production.sh
+# Description: Production deployment automation for Sprint100 server
+# Usage: ./deploy_production.sh
+# Dependencies: validate_deployment.sh, production_health_check.sh
+# ------------------------------------------------------------
 
-# Sprint100 Production Deployment Script
-# This script automates the production deployment process
+set -euo pipefail
 
 echo "🚀 Sprint100 Production Deployment"
 echo "=================================="

@@ -1,9 +1,12 @@
 #!/bin/bash
+# ------------------------------------------------------------
+# Script Name: monitor_builds.sh
+# Description: Monitors EAS builds and submissions, generates status reports
+# Usage: ./monitor_builds.sh
+# Dependencies: eas-cli, jq
+# ------------------------------------------------------------
 
-# Sprint100 Build Status Monitor
-# Monitors EAS builds and submissions, generates status reports
-
-set -e  # Exit on any error
+set -euo pipefail
 
 # Colors for output
 RED='\033[0;31m'
