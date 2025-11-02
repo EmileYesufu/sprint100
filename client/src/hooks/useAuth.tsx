@@ -9,6 +9,8 @@ import * as SecureStore from "expo-secure-store";
 import { jwtDecode } from "jwt-decode";
 import { User } from "@/types";
 import { getServerUrl } from "@/config";
+// Import base64 polyfill for React Native
+import "@/utils/base64Polyfill";
 
 interface JWTPayload {
   userId: number;
@@ -66,6 +68,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     tokenRefreshInterval.current = setInterval(async () => {
       if (token) {
         try {
+          // Validate token format
+          const parts = token.split('.');
+          if (parts.length !== 3) {
+            console.error("Invalid token format during expiration check");
+            await logout();
+            return;
+          }
+          
           const decoded = jwtDecode<JWTPayload>(token);
           const now = Math.floor(Date.now() / 1000);
           const expirationBuffer = 300; // 5 minutes before expiration
@@ -97,27 +107,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const storedToken = await SecureStore.getItemAsync("token");
       if (storedToken) {
-        const decoded = jwtDecode<JWTPayload>(storedToken);
+        // Validate token format
+        const parts = storedToken.split('.');
+        if (parts.length !== 3) {
+          console.warn("Invalid stored token format, clearing...");
+          await SecureStore.deleteItemAsync("token");
+          setIsLoading(false);
+          return;
+        }
         
-        // Check if token is already expired
-        const now = Math.floor(Date.now() / 1000);
-        if (decoded.exp && decoded.exp < now) {
-          console.log("Stored token is expired, attempting refresh...");
-          const success = await refreshToken();
-          if (!success) {
-            console.log("Token refresh failed, clearing stored token...");
-            await SecureStore.deleteItemAsync("token");
-            setIsLoading(false);
-            return;
+        try {
+          const decoded = jwtDecode<JWTPayload>(storedToken);
+          
+          // Check if token is already expired
+          const now = Math.floor(Date.now() / 1000);
+          if (decoded.exp && decoded.exp < now) {
+            console.log("Stored token is expired, attempting refresh...");
+            const success = await refreshToken();
+            if (!success) {
+              console.log("Token refresh failed, clearing stored token...");
+              await SecureStore.deleteItemAsync("token");
+              setIsLoading(false);
+              return;
+            }
+          } else {
+            setToken(storedToken);
+            setUser({
+              id: decoded.userId,
+              email: decoded.email || "",
+              username: decoded.username || "",
+              elo: 1000, // Default, will be updated from server
+            });
           }
-        } else {
-          setToken(storedToken);
-          setUser({
-            id: decoded.userId,
-            email: decoded.email || "",
-            username: decoded.username || "",
-            elo: 1000, // Default, will be updated from server
-          });
+        } catch (decodeError: any) {
+          console.error("Error decoding stored token:", decodeError);
+          // Clear invalid token
+          await SecureStore.deleteItemAsync("token");
         }
       }
     } catch (error) {
@@ -131,7 +156,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (newToken: string) => {
     try {
+      // Validate token format before decoding
+      if (!newToken || typeof newToken !== 'string') {
+        throw new Error("Invalid token: token is not a string");
+      }
+      
+      const parts = newToken.split('.');
+      if (parts.length !== 3) {
+        throw new Error(`Invalid token format: expected 3 parts, got ${parts.length}`);
+      }
+      
       const decoded = jwtDecode<JWTPayload>(newToken);
+      
+      if (!decoded.userId) {
+        throw new Error("Invalid token: missing userId in payload");
+      }
+      
       await SecureStore.setItemAsync("token", newToken);
       setToken(newToken);
       setUser({
@@ -140,8 +180,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         username: decoded.username || "",
         elo: 1000, // Will be updated from server
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error saving token:", error);
+      console.error("Token that failed:", newToken ? `${newToken.substring(0, 50)}...` : "null/undefined");
       throw error;
     }
   };
@@ -164,17 +205,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const newToken = data.token;
         
         if (newToken) {
-          const decoded = jwtDecode<JWTPayload>(newToken);
-          await SecureStore.setItemAsync("token", newToken);
-          setToken(newToken);
-          setUser({
-            id: decoded.userId,
-            email: decoded.email || "",
-            username: decoded.username || "",
-            elo: user?.elo || 1000,
-          });
-          console.log("Token refreshed successfully");
-          return true;
+          // Validate token format before decoding
+          const parts = newToken.split('.');
+          if (parts.length !== 3) {
+            console.error("Invalid token format from refresh endpoint");
+            return false;
+          }
+          
+          try {
+            const decoded = jwtDecode<JWTPayload>(newToken);
+            await SecureStore.setItemAsync("token", newToken);
+            setToken(newToken);
+            setUser({
+              id: decoded.userId,
+              email: decoded.email || "",
+              username: decoded.username || "",
+              elo: user?.elo || 1000,
+            });
+            console.log("Token refreshed successfully");
+            return true;
+          } catch (decodeError: any) {
+            console.error("Error decoding refreshed token:", decodeError);
+            return false;
+          }
         }
       }
       
