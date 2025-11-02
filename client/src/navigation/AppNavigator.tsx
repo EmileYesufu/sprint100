@@ -31,6 +31,7 @@ import TrainingRaceScreen from "@/screens/Training/TrainingRaceScreen";
 import ProfileScreen from "@/screens/ProfileScreen";
 import LeaderboardScreen from "@/screens/LeaderboardScreen";
 import SettingsScreen from "@/screens/SettingsScreen";
+import SplashScreen from "@/screens/SplashScreen";
 
 // Navigation Type Definitions
 export type AuthStackParamList = {
@@ -73,11 +74,13 @@ export type MainTabsParamList = {
 };
 
 export type RootStackParamList = {
+  Splash: undefined;
   Auth: undefined;
   Main: undefined;
 };
 
 // Stack and Tab Navigators
+const RootStack = createNativeStackNavigator<RootStackParamList>();
 const AuthStack = createNativeStackNavigator<AuthStackParamList>();
 const RaceStack = createNativeStackNavigator<RaceStackParamList>();
 const TrainingStack = createNativeStackNavigator<TrainingStackParamList>();
@@ -229,6 +232,8 @@ export default function AppNavigator() {
   const { token, isLoading } = useAuth();
   const [hasSeenOnboarding, setHasSeenOnboarding] = useState<boolean | null>(null);
   const [checkingOnboarding, setCheckingOnboarding] = useState(true);
+  const [splashFinished, setSplashFinished] = useState(false);
+  const navigationRef = React.useRef<any>(null);
 
   // Check onboarding status on mount
   useEffect(() => {
@@ -247,22 +252,46 @@ export default function AppNavigator() {
     checkOnboarding();
   }, []);
 
-  // Show loading while checking auth and onboarding
-  if (isLoading || checkingOnboarding) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#007AFF" />
-      </View>
-    );
-  }
+  // Navigate after splash finishes and checks complete
+  const handleSplashFinish = () => {
+    setSplashFinished(true);
+  };
 
+  useEffect(() => {
+    if (splashFinished && !isLoading && !checkingOnboarding && navigationRef.current) {
+      // Small delay to ensure smooth transition
+      setTimeout(() => {
+        if (token) {
+          navigationRef.current?.replace("Main");
+        } else {
+          navigationRef.current?.replace("Auth");
+        }
+      }, 100);
+    }
+  }, [splashFinished, isLoading, checkingOnboarding, token]);
+
+  // Show splash screen first, then transition to auth/main
   return (
-    <NavigationContainer>
-      {token ? (
-        <MainNavigator />
-      ) : (
-        <AuthNavigator initialRouteName={hasSeenOnboarding ? "Login" : "Onboarding"} />
-      )}
+    <NavigationContainer ref={navigationRef}>
+      <RootStack.Navigator
+        screenOptions={{
+          headerShown: false,
+        }}
+        initialRouteName="Splash"
+      >
+        <RootStack.Screen name="Splash" options={{ animationEnabled: false }}>
+          {() => <SplashScreen onFinish={handleSplashFinish} />}
+        </RootStack.Screen>
+        
+        <RootStack.Screen name="Main" component={MainNavigator} />
+        <RootStack.Screen name="Auth" options={{ animationEnabled: false }}>
+          {() => (
+            <AuthNavigator
+              initialRouteName={hasSeenOnboarding ? "Login" : "Onboarding"}
+            />
+          )}
+        </RootStack.Screen>
+      </RootStack.Navigator>
     </NavigationContainer>
   );
 }
