@@ -255,10 +255,19 @@ export default function AppNavigator() {
 
   // Navigate after splash finishes and checks complete
   const handleSplashFinish = () => {
+    console.log("[SplashScreen] onFinish called");
     setSplashFinished(true);
   };
 
   useEffect(() => {
+    console.log("[AppNavigator] Navigation state:", {
+      splashFinished,
+      isLoading,
+      checkingOnboarding,
+      navigationReady,
+      hasToken: !!token,
+    });
+
     if (splashFinished && !isLoading && !checkingOnboarding && navigationReady) {
       // Small delay to ensure smooth transition
       const timeoutId = setTimeout(() => {

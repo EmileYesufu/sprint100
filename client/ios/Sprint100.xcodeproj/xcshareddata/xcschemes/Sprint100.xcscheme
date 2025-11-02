@@ -15,9 +15,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "13B07F861A680F5B00A75B9A"
-               BuildableName = "Sprint100Dev.app"
-               BlueprintName = "Sprint100Dev"
-               ReferencedContainer = "container:Sprint100Dev.xcodeproj">
+               BuildableName = "Sprint100.app"
+               BlueprintName = "Sprint100"
+               ReferencedContainer = "container:Sprint100.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -45,9 +45,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "13B07F861A680F5B00A75B9A"
-            BuildableName = "Sprint100Dev.app"
-            BlueprintName = "Sprint100Dev"
-            ReferencedContainer = "container:Sprint100Dev.xcodeproj">
+            BuildableName = "Sprint100.app"
+            BlueprintName = "Sprint100"
+            ReferencedContainer = "container:Sprint100.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
@@ -62,9 +62,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "13B07F861A680F5B00A75B9A"
-            BuildableName = "Sprint100Dev.app"
-            BlueprintName = "Sprint100Dev"
-            ReferencedContainer = "container:Sprint100Dev.xcodeproj">
+            BuildableName = "Sprint100.app"
+            BlueprintName = "Sprint100"
+            ReferencedContainer = "container:Sprint100.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>
