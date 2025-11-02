@@ -25,7 +25,7 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useTraining } from "@/hooks/useTraining";
 import { metersToPct } from "@/utils/formatting";
-import { theme } from "@/theme";
+import { theme, fontSizes } from "@/theme";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { TrainingStackParamList } from "@/navigation/AppNavigator";
 import type { TrainingRecord } from "@/types";
@@ -662,8 +662,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   countdownText: {
-    fontSize: typography.hero.fontSize * 2.5, // Large countdown
-    fontWeight: typography.hero.fontWeight,
+    fontSize: fontSizes.hero * 2.5, // Large countdown (hero = 48px, so 120px)
+    fontWeight: typography.h1.fontWeight,
     color: colors.text,
   },
   resultOverlay: {
