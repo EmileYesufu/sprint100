@@ -57,18 +57,41 @@ export default function RegisterScreen({ navigation }: Props) {
     setError("");
 
     try {
-      const response = await fetch(`${getServerUrl()}/api/register`, {
+      const serverUrl = getServerUrl();
+      const fullUrl = `${serverUrl}/api/register`;
+      console.log(`🌐 Attempting registration to: ${fullUrl}`);
+      console.log(`📱 Current network state check...`);
+      
+      // Add timeout and better error handling for React Native
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+      
+      const response = await fetch(fullUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ email, username, password }),
+        signal: controller.signal,
       });
+      
+      clearTimeout(timeoutId);
 
-      const data = await response.json();
+      console.log(`📡 Response status: ${response.status}`);
+      
+      // Check if response has JSON before parsing
+      const contentType = response.headers.get("content-type");
+      let data;
+      if (contentType && contentType.includes("application/json")) {
+        data = await response.json();
+      } else {
+        const text = await response.text();
+        console.error("Non-JSON response:", text);
+        throw new Error(`Server returned non-JSON: ${response.status} ${text.substring(0, 100)}`);
+      }
 
       if (!response.ok) {
-        throw new Error(data.error || "Registration failed");
+        throw new Error(data.error || `Registration failed: ${response.status}`);
       }
 
       // Store token and decode user info
@@ -76,8 +99,26 @@ export default function RegisterScreen({ navigation }: Props) {
       // Navigation will happen automatically via AppNavigator when auth state changes
     } catch (err: any) {
       console.error("Registration error:", err);
-      setError(err.message || "An error occurred during registration");
-      Alert.alert("Registration Failed", err.message || "An error occurred during registration");
+      console.error("Error details:", {
+        message: err.message,
+        name: err.name,
+        stack: err.stack,
+        code: err.code,
+        cause: err.cause,
+      });
+      
+      // More specific error messages
+      let errorMessage = "An error occurred during registration";
+      if (err.message) {
+        errorMessage = err.message;
+      } else if (err.name === "TypeError" && err.message?.includes("Network request failed")) {
+        errorMessage = `Cannot connect to server. Make sure the server is running at ${getServerUrl()}`;
+      } else if (err.name === "TypeError" && err.message?.includes("JSON")) {
+        errorMessage = "Server returned invalid response. Check server logs.";
+      }
+      
+      setError(errorMessage);
+      Alert.alert("Registration Failed", errorMessage);
     } finally {
       setIsLoading(false);
     }
