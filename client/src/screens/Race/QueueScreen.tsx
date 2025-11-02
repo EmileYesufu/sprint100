@@ -22,9 +22,12 @@ import { useNetwork } from "@/hooks/useNetwork";
 import { getServerUrl } from "@/config";
 import { formatElo } from "@/utils/formatting";
 import { handleError } from "@/utils/errorHandler";
+import { theme } from "@/theme";
 import type { QueuedPlayer, MatchResult, UserSearchResult, Challenge } from "@/types";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { RaceStackParamList } from "@/navigation/AppNavigator";
+
+const { colors, typography, spacing, radii, shadows, components } = theme;
 
 type Props = NativeStackScreenProps<RaceStackParamList, "Queue">;
 type MatchMode = "queue" | "challenge";
@@ -182,8 +185,8 @@ export default function QueueScreen({ navigation }: Props) {
   };
 
   if (!user) {
-    return (
-      <SafeAreaView style={styles.container}>
+  return (
+    <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
         <Text style={styles.errorText}>User not loaded</Text>
       </SafeAreaView>
     );
@@ -191,7 +194,7 @@ export default function QueueScreen({ navigation }: Props) {
 
   return (
     // SafeAreaView added to avoid iPhone notch/HUD
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
       {/* User Profile Section */}
       <View style={styles.profileSection}>
         <Text style={styles.title}>Sprint100</Text>
@@ -254,7 +257,7 @@ export default function QueueScreen({ navigation }: Props) {
                   <Text style={styles.buttonText}>Leave Queue</Text>
                 </TouchableOpacity>
                 <View style={styles.searchingContainer}>
-                  <ActivityIndicator size="small" color="#007AFF" />
+                  <ActivityIndicator size="small" color={colors.primary} />
                   <Text style={styles.searchingText}>Searching for opponent...</Text>
                 </View>
               </>
@@ -287,6 +290,7 @@ export default function QueueScreen({ navigation }: Props) {
             <TextInput
               style={styles.searchInput}
               placeholder="Search by username..."
+              placeholderTextColor={colors.placeholder}
               value={searchQuery}
               onChangeText={setSearchQuery}
               autoCapitalize="none"
@@ -297,7 +301,7 @@ export default function QueueScreen({ navigation }: Props) {
               disabled={isSearching || isOfflineMode}
             >
               {isSearching ? (
-                <ActivityIndicator size="small" color="#fff" />
+                <ActivityIndicator size="small" color={colors.textInverse} />
               ) : (
                 <Text style={[styles.searchButtonText, isOfflineMode && styles.buttonTextDisabled]}>
                   {isOfflineMode ? "Offline" : "Search"}
@@ -375,281 +379,288 @@ export default function QueueScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f5f5f5",
+    backgroundColor: colors.background,
   },
   profileSection: {
-    backgroundColor: "#fff",
-    padding: 24,
+    backgroundColor: colors.surface,
+    padding: spacing.sp6,
     alignItems: "center",
     borderBottomWidth: 1,
-    borderBottomColor: "#e0e0e0",
+    borderBottomColor: colors.divider,
   },
   title: {
-    fontSize: 28,
-    fontWeight: "bold",
-    marginBottom: 4,
-    color: "#333",
+    fontSize: typography.h3.fontSize,
+    fontWeight: typography.h3.fontWeight,
+    marginBottom: spacing.sp1,
+    color: colors.text,
   },
   username: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#007AFF",
-    marginBottom: 4,
+    fontSize: typography.body.fontSize,
+    fontWeight: typography.label.fontWeight,
+    color: colors.primary,
+    marginBottom: spacing.sp1,
   },
   email: {
-    fontSize: 14,
-    color: "#666",
-    marginBottom: 16,
+    fontSize: typography.bodySmall.fontSize,
+    color: colors.textSecondary,
+    marginBottom: spacing.sp2,
   },
   eloContainer: {
     flexDirection: "row",
     alignItems: "center",
   },
   eloLabel: {
-    fontSize: 18,
-    color: "#666",
-    marginRight: 8,
+    fontSize: typography.bodyLarge.fontSize,
+    color: colors.textSecondary,
+    marginRight: spacing.sp2,
   },
   eloValue: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#007AFF",
+    fontSize: typography.h4.fontSize,
+    fontWeight: typography.h4.fontWeight,
+    color: colors.primary,
   },
   statusContainer: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    padding: 12,
-    backgroundColor: "#fff",
-    marginTop: 1,
+    padding: spacing.sp3,
+    backgroundColor: colors.surface,
+    marginTop: spacing.sp1,
   },
   statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: "#999",
-    marginRight: 8,
+    width: spacing.sp2,
+    height: spacing.sp2,
+    borderRadius: radii.sm,
+    backgroundColor: colors.disabled,
+    marginRight: spacing.sp2,
   },
   statusDotConnected: {
-    backgroundColor: "#34C759",
+    backgroundColor: colors.secondary,
   },
   statusText: {
-    fontSize: 14,
-    color: "#666",
+    fontSize: typography.bodySmall.fontSize,
+    color: colors.textSecondary,
   },
   modeSelectorContainer: {
     flexDirection: "row",
-    backgroundColor: "#fff",
-    margin: 16,
-    borderRadius: 8,
-    padding: 4,
+    backgroundColor: colors.surface,
+    margin: spacing.sp2,
+    borderRadius: radii.button,
+    padding: spacing.sp1,
   },
   modeButton: {
     flex: 1,
-    paddingVertical: 12,
+    paddingVertical: spacing.sp3,
     alignItems: "center",
-    borderRadius: 6,
+    borderRadius: radii.sm,
   },
   modeButtonActive: {
-    backgroundColor: "#007AFF",
+    backgroundColor: colors.primary,
   },
   modeButtonText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#666",
+    fontSize: typography.bodySmall.fontSize,
+    fontWeight: typography.label.fontWeight,
+    color: colors.textSecondary,
   },
   modeButtonTextActive: {
-    color: "#fff",
+    color: colors.textInverse,
   },
   queueSection: {
-    padding: 24,
+    padding: spacing.sp6,
     alignItems: "center",
   },
   button: {
-    paddingVertical: 16,
-    paddingHorizontal: 48,
-    borderRadius: 8,
+    paddingVertical: spacing.sp2,
+    paddingHorizontal: spacing.sp12,
+    borderRadius: radii.button,
     minWidth: 200,
     alignItems: "center",
+    minHeight: components.button.height,
+    ...shadows.sm,
   },
   joinButton: {
-    backgroundColor: "#34C759",
+    backgroundColor: colors.secondary,
   },
   leaveButton: {
-    backgroundColor: "#FF3B30",
+    backgroundColor: colors.danger,
   },
   buttonDisabled: {
-    backgroundColor: "#999",
+    backgroundColor: colors.disabled,
   },
   buttonText: {
-    color: "#fff",
-    fontSize: 18,
-    fontWeight: "600",
+    color: colors.textInverse,
+    fontSize: typography.bodyLarge.fontSize,
+    fontWeight: typography.label.fontWeight,
   },
   searchingContainer: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 16,
+    marginTop: spacing.sp2,
   },
   searchingText: {
-    marginLeft: 8,
-    fontSize: 16,
-    color: "#666",
+    marginLeft: spacing.sp2,
+    fontSize: typography.body.fontSize,
+    color: colors.textSecondary,
   },
   playersSection: {
     flex: 1,
-    padding: 16,
+    padding: spacing.sp2,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    marginBottom: 12,
-    color: "#333",
+    fontSize: typography.h4.fontSize,
+    fontWeight: typography.h4.fontWeight,
+    marginBottom: spacing.sp3,
+    color: colors.text,
   },
   playerItem: {
     flexDirection: "row",
     justifyContent: "space-between",
-    padding: 12,
-    backgroundColor: "#fff",
-    borderRadius: 8,
-    marginBottom: 8,
+    padding: spacing.sp3,
+    backgroundColor: colors.surface,
+    borderRadius: radii.card,
+    marginBottom: spacing.sp2,
+    ...shadows.sm,
   },
   playerEmail: {
-    fontSize: 14,
-    color: "#333",
+    fontSize: typography.bodySmall.fontSize,
+    color: colors.text,
   },
   playerElo: {
-    fontSize: 14,
-    color: "#666",
+    fontSize: typography.bodySmall.fontSize,
+    color: colors.textSecondary,
   },
   challengeSection: {
     flex: 1,
-    padding: 16,
+    padding: spacing.sp2,
   },
   searchContainer: {
     flexDirection: "row",
-    gap: 8,
-    marginBottom: 16,
+    gap: spacing.sp2,
+    marginBottom: spacing.sp2,
   },
   searchInput: {
     flex: 1,
-    backgroundColor: "#fff",
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 14,
+    borderColor: colors.border,
+    borderRadius: radii.input,
+    padding: spacing.sp3,
+    fontSize: typography.bodySmall.fontSize,
+    color: colors.text, // White text on dark backgrounds
+    minHeight: components.input.height,
   },
   searchButton: {
-    backgroundColor: "#007AFF",
-    borderRadius: 8,
-    paddingHorizontal: 20,
+    backgroundColor: colors.primary,
+    borderRadius: radii.button,
+    paddingHorizontal: spacing.sp5,
     justifyContent: "center",
     minWidth: 80,
+    minHeight: components.button.heightSmall,
   },
   searchButtonText: {
-    color: "#fff",
-    fontSize: 14,
-    fontWeight: "600",
+    color: colors.textInverse,
+    fontSize: typography.bodySmall.fontSize,
+    fontWeight: typography.label.fontWeight,
   },
   resultsSection: {
-    marginBottom: 16,
+    marginBottom: spacing.sp2,
   },
   searchResultItem: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    padding: 12,
-    backgroundColor: "#fff",
-    borderRadius: 8,
-    marginBottom: 8,
+    padding: spacing.sp3,
+    backgroundColor: colors.surface,
+    borderRadius: radii.card,
+    marginBottom: spacing.sp2,
+    ...shadows.sm,
   },
   resultInfo: {
     flex: 1,
   },
   resultUsername: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#333",
+    fontSize: typography.body.fontSize,
+    fontWeight: typography.label.fontWeight,
+    color: colors.text,
   },
   resultElo: {
-    fontSize: 12,
-    color: "#666",
+    fontSize: typography.caption.fontSize,
+    color: colors.textSecondary,
   },
   challengeButton: {
-    backgroundColor: "#FF9500",
-    borderRadius: 6,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
+    backgroundColor: colors.warning,
+    borderRadius: radii.sm,
+    paddingVertical: spacing.sp2,
+    paddingHorizontal: spacing.sp2,
+    minHeight: components.button.heightSmall,
   },
   challengeButtonText: {
-    color: "#fff",
-    fontSize: 14,
-    fontWeight: "600",
+    color: colors.textInverse,
+    fontSize: typography.bodySmall.fontSize,
+    fontWeight: typography.label.fontWeight,
   },
   invitesSection: {
-    marginTop: 16,
+    marginTop: spacing.sp2,
   },
   inviteItem: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    padding: 12,
-    backgroundColor: "#E3F2FD",
-    borderRadius: 8,
-    marginBottom: 8,
+    padding: spacing.sp3,
+    backgroundColor: colors.card,
+    borderRadius: radii.card,
+    marginBottom: spacing.sp2,
     borderWidth: 1,
-    borderColor: "#007AFF",
+    borderColor: colors.primary,
+    ...shadows.sm,
   },
   inviteInfo: {
     flex: 1,
   },
   inviteUsername: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#007AFF",
+    fontSize: typography.body.fontSize,
+    fontWeight: typography.label.fontWeight,
+    color: colors.primary,
   },
   inviteElo: {
-    fontSize: 12,
-    color: "#666",
+    fontSize: typography.caption.fontSize,
+    color: colors.textSecondary,
   },
   inviteActions: {
     flexDirection: "row",
-    gap: 8,
+    gap: spacing.sp2,
   },
   acceptButton: {
-    backgroundColor: "#34C759",
-    borderRadius: 6,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
+    backgroundColor: colors.secondary,
+    borderRadius: radii.sm,
+    paddingVertical: spacing.sp2,
+    paddingHorizontal: spacing.sp2,
+    minHeight: components.button.heightSmall,
   },
   acceptButtonText: {
-    color: "#fff",
-    fontSize: 14,
-    fontWeight: "600",
+    color: colors.textInverse,
+    fontSize: typography.bodySmall.fontSize,
+    fontWeight: typography.label.fontWeight,
   },
   declineButton: {
-    backgroundColor: "#FF3B30",
-    borderRadius: 6,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
+    backgroundColor: colors.danger,
+    borderRadius: radii.sm,
+    paddingVertical: spacing.sp2,
+    paddingHorizontal: spacing.sp2,
+    minHeight: components.button.heightSmall,
   },
   declineButtonText: {
-    color: "#fff",
-    fontSize: 14,
-    fontWeight: "600",
+    color: colors.textInverse,
+    fontSize: typography.bodySmall.fontSize,
+    fontWeight: typography.label.fontWeight,
   },
   errorText: {
-    fontSize: 16,
-    color: "#FF3B30",
+    fontSize: typography.body.fontSize,
+    color: colors.danger,
     textAlign: "center",
-    marginTop: 24,
-  },
-  buttonDisabled: {
-    backgroundColor: "#E5E5E7",
-    borderColor: "#D1D1D6",
+    marginTop: spacing.sp6,
   },
   buttonTextDisabled: {
-    color: "#8E8E93",
+    color: colors.textMuted,
   },
 });

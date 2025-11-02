@@ -17,6 +17,7 @@ import { useAuth } from "@/hooks/useAuth";
 import OnboardingScreen from "@/screens/OnboardingScreen";
 import LoginScreen from "@/screens/Auth/LoginScreen";
 import RegisterScreen from "@/screens/Auth/RegisterScreen";
+import ForgotPasswordScreen from "@/screens/Auth/ForgotPasswordScreen";
 
 // Race Screens
 import QueueScreen from "@/screens/Race/QueueScreen";
@@ -36,6 +37,7 @@ export type AuthStackParamList = {
   Onboarding: undefined;
   Login: undefined;
   Register: undefined;
+  ForgotPassword: undefined;
 };
 
 export type RaceStackParamList = {
@@ -93,6 +95,11 @@ function AuthNavigator({ initialRouteName = "Onboarding" }: { initialRouteName?:
       <AuthStack.Screen name="Onboarding" component={OnboardingScreen} />
       <AuthStack.Screen name="Login" component={LoginScreen} />
       <AuthStack.Screen name="Register" component={RegisterScreen} />
+      <AuthStack.Screen
+        name="ForgotPassword"
+        component={ForgotPasswordScreen}
+        options={{ title: "Forgot Password", headerShown: false }}
+      />
     </AuthStack.Navigator>
   );
 }

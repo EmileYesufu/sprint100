@@ -14,9 +14,12 @@ import {
   ScrollView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { theme } from "@/theme";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { TrainingStackParamList } from "@/navigation/AppNavigator";
 import type { AIDifficulty, AIPersonality } from "@/types";
+
+const { colors, typography, spacing, radii, shadows, components } = theme;
 
 type Props = NativeStackScreenProps<TrainingStackParamList, "TrainingSetup">;
 
@@ -38,7 +41,7 @@ export default function TrainingSetupScreen({ navigation }: Props) {
 
   return (
     // SafeAreaView added to avoid iPhone notch/HUD
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#f5f5f5" }} edges={["top"]}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={["top", "bottom"]}>
       <ScrollView style={styles.container}>
       <View style={styles.content}>
         <Text style={styles.title}>Training Mode</Text>
@@ -154,83 +157,88 @@ export default function TrainingSetupScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f5f5f5",
+    backgroundColor: colors.background,
   },
   content: {
-    padding: 20,
+    padding: spacing.sp5, // 20px - off 8px grid but matches design
   },
   title: {
-    fontSize: 28,
-    fontWeight: "bold",
-    color: "#333",
-    marginBottom: 4,
+    fontSize: typography.h3.fontSize,
+    fontWeight: typography.h3.fontWeight,
+    color: colors.text,
+    marginBottom: spacing.sp1,
   },
   subtitle: {
-    fontSize: 14,
-    color: "#666",
-    marginBottom: 24,
+    fontSize: typography.bodySmall.fontSize,
+    color: colors.textSecondary,
+    marginBottom: spacing.sp6,
   },
   section: {
-    marginBottom: 24,
+    marginBottom: spacing.sp6,
   },
   sectionTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#333",
-    marginBottom: 12,
+    fontSize: typography.h4.fontSize,
+    fontWeight: typography.h4.fontWeight,
+    color: colors.text,
+    marginBottom: spacing.sp3,
   },
   buttonRow: {
     flexDirection: "row",
-    gap: 8,
+    gap: spacing.sp2,
   },
   optionButton: {
     flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    backgroundColor: "#fff",
-    borderRadius: 8,
+    paddingVertical: spacing.sp3,
+    paddingHorizontal: spacing.sp2,
+    backgroundColor: colors.surface,
+    borderRadius: radii.button,
     borderWidth: 2,
-    borderColor: "#ddd",
+    borderColor: colors.border,
     alignItems: "center",
+    minHeight: components.button.heightSmall,
   },
   optionButtonActive: {
-    backgroundColor: "#007AFF",
-    borderColor: "#007AFF",
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
   optionButtonText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#666",
+    fontSize: typography.bodySmall.fontSize,
+    fontWeight: typography.label.fontWeight,
+    color: colors.textSecondary,
   },
   optionButtonTextActive: {
-    color: "#fff",
+    color: colors.textInverse,
   },
   helpText: {
-    fontSize: 12,
-    color: "#999",
-    marginTop: 8,
+    fontSize: typography.caption.fontSize,
+    color: colors.textMuted,
+    marginTop: spacing.sp2,
     fontStyle: "italic",
   },
   startButton: {
-    backgroundColor: "#34C759",
-    borderRadius: 12,
-    padding: 18,
+    backgroundColor: colors.secondary,
+    borderRadius: radii.card,
+    padding: spacing.sp4,
     alignItems: "center",
-    marginTop: 8,
+    marginTop: spacing.sp2,
+    minHeight: components.button.height,
+    ...shadows.base,
   },
   startButtonText: {
-    color: "#fff",
-    fontSize: 18,
-    fontWeight: "bold",
+    color: colors.textInverse,
+    fontSize: typography.bodyLarge.fontSize,
+    fontWeight: typography.h3.fontWeight,
   },
   infoBox: {
-    backgroundColor: "#E3F2FD",
-    borderRadius: 8,
-    padding: 12,
-    marginTop: 16,
+    backgroundColor: colors.card,
+    borderRadius: radii.button,
+    padding: spacing.sp3,
+    marginTop: spacing.sp2,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   infoText: {
-    fontSize: 12,
-    color: "#1976D2",
+    fontSize: typography.caption.fontSize,
+    color: colors.primary,
   },
 });

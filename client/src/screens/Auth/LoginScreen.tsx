@@ -19,8 +19,11 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "@/hooks/useAuth";
 import { getServerUrl } from "@/config";
+import { theme } from "@/theme";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { AuthStackParamList } from "@/navigation/AppNavigator";
+
+const { colors, typography, spacing, radii, shadows, components } = theme;
 
 type Props = NativeStackScreenProps<AuthStackParamList, "Login">;
 
@@ -69,7 +72,7 @@ export default function LoginScreen({ navigation }: Props) {
 
   return (
     // SafeAreaView added to avoid iPhone notch/HUD
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
       <KeyboardAvoidingView
         style={styles.container}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -92,6 +95,7 @@ export default function LoginScreen({ navigation }: Props) {
           <TextInput
             style={styles.input}
             placeholder="Enter your username"
+            placeholderTextColor={colors.placeholder}
             value={email}
             onChangeText={setEmail}
             autoCapitalize="none"
@@ -105,11 +109,22 @@ export default function LoginScreen({ navigation }: Props) {
           <TextInput
             style={styles.input}
             placeholder="Enter your password"
+            placeholderTextColor={colors.placeholder}
             value={password}
             onChangeText={setPassword}
             secureTextEntry
             editable={!isLoading}
           />
+          <TouchableOpacity
+            onPress={() => navigation.navigate("ForgotPassword")}
+            disabled={isLoading}
+            style={styles.forgotPasswordLink}
+            accessibilityLabel="Forgot password"
+            accessibilityHint="Navigate to password reset screen"
+            accessibilityRole="button"
+          >
+            <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+          </TouchableOpacity>
         </View>
 
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
@@ -120,7 +135,7 @@ export default function LoginScreen({ navigation }: Props) {
           disabled={isLoading}
         >
           {isLoading ? (
-            <ActivityIndicator color="#fff" />
+            <ActivityIndicator color={colors.textInverse} />
           ) : (
             <Text style={styles.buttonText}>Login</Text>
           )}
@@ -143,104 +158,111 @@ export default function LoginScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#0A1F44", // Dark navy blue
+    backgroundColor: colors.background,
   },
   container: {
     flex: 1,
-    backgroundColor: "#0A1F44", // Dark navy blue
+    backgroundColor: colors.background,
   },
   content: {
     flex: 1,
     justifyContent: "center",
-    padding: 24,
-    backgroundColor: "#1A2B5C", // Slightly lighter blue for the card
-    margin: 20,
-    borderRadius: 16,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+    padding: spacing.sp6,
+    backgroundColor: colors.card,
+    margin: spacing.sp5, // 20px - off 8px grid but matches design
+    borderRadius: radii.modal,
+    ...shadows.md,
   },
   iconContainer: {
     alignItems: "center",
-    marginBottom: 24,
+    marginBottom: spacing.sp6,
   },
   appIcon: {
     width: 80,
     height: 80,
-    borderRadius: 16,
+    borderRadius: radii.lg,
   },
   title: {
-    fontSize: 32,
-    fontWeight: "bold",
+    fontSize: typography.h2.fontSize,
+    fontWeight: typography.h2.fontWeight,
     textAlign: "center",
-    marginBottom: 8,
-    color: "#FFFFFF",
+    marginBottom: spacing.sp2,
+    color: colors.text,
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: typography.body.fontSize,
     textAlign: "center",
-    marginBottom: 32,
-    color: "#B0B0B0",
+    marginBottom: spacing.sp8,
+    color: colors.textSecondary,
   },
   inputContainer: {
-    marginBottom: 16,
+    marginBottom: spacing.sp2,
   },
   inputLabel: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: "#FFFFFF",
-    marginBottom: 8,
+    fontSize: typography.label.fontSize,
+    fontWeight: typography.label.fontWeight,
+    color: colors.text,
+    marginBottom: spacing.sp2,
   },
   input: {
-    backgroundColor: "#2A3B5C",
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: "#4A5B7C",
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    color: "#FFFFFF",
+    borderColor: colors.border,
+    borderRadius: radii.input,
+    padding: spacing.sp3,
+    fontSize: typography.body.fontSize,
+    color: colors.text, // White text on dark backgrounds
+    minHeight: components.input.height,
   },
   button: {
-    backgroundColor: "#007AFF",
-    borderRadius: 8,
-    padding: 16,
+    backgroundColor: colors.primary,
+    borderRadius: radii.button,
+    padding: spacing.sp2,
     alignItems: "center",
-    marginTop: 8,
+    marginTop: spacing.sp2,
+    minHeight: components.button.height,
+    ...shadows.sm,
   },
   buttonDisabled: {
-    backgroundColor: "#4A5B7C",
+    backgroundColor: colors.disabled,
   },
   buttonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
+    color: colors.textInverse,
+    fontSize: typography.body.fontSize,
+    fontWeight: typography.bodyLarge.fontWeight,
   },
   linkButton: {
-    marginTop: 16,
-    padding: 8,
+    marginTop: spacing.sp2,
+    padding: spacing.sp2,
     flexDirection: "row",
     justifyContent: "center",
   },
   linkText: {
-    color: "#B0B0B0",
+    color: colors.textSecondary,
     textAlign: "center",
-    fontSize: 14,
+    fontSize: typography.bodySmall.fontSize,
   },
   linkTextBold: {
-    color: "#007AFF",
+    color: colors.primary,
     textAlign: "center",
-    fontSize: 14,
-    fontWeight: "600",
+    fontSize: typography.bodySmall.fontSize,
+    fontWeight: typography.label.fontWeight,
   },
   errorText: {
-    color: "#FF6B6B",
-    marginBottom: 12,
+    color: colors.danger,
+    marginBottom: spacing.sp3,
     textAlign: "center",
+    fontSize: typography.bodySmall.fontSize,
+  },
+  forgotPasswordLink: {
+    alignSelf: "flex-end",
+    marginTop: spacing.sp1,
+    padding: spacing.sp1,
+  },
+  forgotPasswordText: {
+    fontSize: typography.caption.fontSize,
+    color: colors.accent,
+    textDecorationLine: "underline",
   },
 });
 

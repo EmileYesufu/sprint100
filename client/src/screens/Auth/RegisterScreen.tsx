@@ -18,8 +18,11 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "@/hooks/useAuth";
 import { getServerUrl } from "@/config";
+import { theme } from "@/theme";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { AuthStackParamList } from "@/navigation/AppNavigator";
+
+const { colors, typography, spacing, radii, shadows, components } = theme;
 
 type Props = NativeStackScreenProps<AuthStackParamList, "Register">;
 
@@ -135,7 +138,7 @@ export default function RegisterScreen({ navigation }: Props) {
 
   return (
     // SafeAreaView added to avoid iPhone notch/HUD
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#f5f5f5" }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={["top", "bottom"]}>
       <KeyboardAvoidingView
         style={styles.container}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -148,6 +151,7 @@ export default function RegisterScreen({ navigation }: Props) {
         <TextInput
           style={styles.input}
           placeholder="Email"
+          placeholderTextColor={colors.placeholder}
           value={email}
           onChangeText={setEmail}
           autoCapitalize="none"
@@ -160,6 +164,7 @@ export default function RegisterScreen({ navigation }: Props) {
         <TextInput
           style={styles.input}
           placeholder="Username (3-20 chars, alphanumeric + _)"
+          placeholderTextColor={colors.placeholder}
           value={username}
           onChangeText={setUsername}
           autoCapitalize="none"
@@ -172,6 +177,7 @@ export default function RegisterScreen({ navigation }: Props) {
         <TextInput
           style={styles.input}
           placeholder="Password"
+          placeholderTextColor={colors.placeholder}
           value={password}
           onChangeText={setPassword}
           secureTextEntry
@@ -184,6 +190,7 @@ export default function RegisterScreen({ navigation }: Props) {
         <TextInput
           style={styles.input}
           placeholder="Confirm Password"
+          placeholderTextColor={colors.placeholder}
           value={confirmPassword}
           onChangeText={setConfirmPassword}
           secureTextEntry
@@ -200,7 +207,7 @@ export default function RegisterScreen({ navigation }: Props) {
           disabled={isLoading}
         >
           {isLoading ? (
-            <ActivityIndicator color="#fff" />
+            <ActivityIndicator color={colors.textInverse} />
           ) : (
             <Text style={styles.buttonText}>Register</Text>
           )}
@@ -222,65 +229,69 @@ export default function RegisterScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f5f5f5",
+    backgroundColor: colors.background,
   },
   content: {
     flex: 1,
     justifyContent: "center",
-    padding: 24,
-    paddingBottom: 100, // Extra padding to accommodate password autofill overlay
+    padding: spacing.sp6,
+    paddingBottom: 100, // Extra padding to accommodate password autofill overlay (iOS exception)
   },
   title: {
-    fontSize: 32,
-    fontWeight: "bold",
+    fontSize: typography.h2.fontSize,
+    fontWeight: typography.h2.fontWeight,
     textAlign: "center",
-    marginBottom: 8,
-    color: "#333",
+    marginBottom: spacing.sp2,
+    color: colors.text,
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: typography.body.fontSize,
     textAlign: "center",
-    marginBottom: 32,
-    color: "#666",
+    marginBottom: spacing.sp8,
+    color: colors.textSecondary,
   },
   input: {
-    backgroundColor: "#fff",
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 16,
-    fontSize: 16,
-    minHeight: 44, // Ensure touchable area is large enough
+    borderColor: colors.border,
+    borderRadius: radii.input,
+    padding: spacing.sp3,
+    marginBottom: spacing.sp2,
+    fontSize: typography.body.fontSize,
+    color: colors.text, // White text on dark backgrounds
+    minHeight: components.input.height, // Ensure touchable area is large enough
   },
   button: {
-    backgroundColor: "#007AFF",
-    borderRadius: 8,
-    padding: 16,
+    backgroundColor: colors.primary,
+    borderRadius: radii.button,
+    padding: spacing.sp2,
     alignItems: "center",
-    marginTop: 8,
+    marginTop: spacing.sp2,
+    minHeight: components.button.height,
+    ...shadows.sm,
   },
   buttonDisabled: {
-    backgroundColor: "#999",
+    backgroundColor: colors.disabled,
   },
   buttonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
+    color: colors.textInverse,
+    fontSize: typography.body.fontSize,
+    fontWeight: typography.bodyLarge.fontWeight,
   },
   linkButton: {
-    marginTop: 16,
-    padding: 8,
+    marginTop: spacing.sp2,
+    padding: spacing.sp2,
   },
   linkText: {
-    color: "#007AFF",
+    color: colors.primary,
     textAlign: "center",
-    fontSize: 14,
+    fontSize: typography.bodySmall.fontSize,
   },
   errorText: {
-    color: "#ff3b30",
-    marginBottom: 12,
+    color: colors.danger,
+    marginBottom: spacing.sp3,
     textAlign: "center",
+    fontSize: typography.bodySmall.fontSize,
   },
 });
 

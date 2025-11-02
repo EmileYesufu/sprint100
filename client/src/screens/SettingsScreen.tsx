@@ -16,6 +16,8 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "@/hooks/useAuth";
 import { useSocket } from "@/hooks/useSocket";
+import { theme } from "@/theme";
+const { colors, typography, spacing, radii, shadows, components } = theme;
 
 export default function SettingsScreen() {
   const { user, logout } = useAuth();
@@ -51,7 +53,7 @@ export default function SettingsScreen() {
 
   return (
     // SafeAreaView added to avoid iPhone notch/HUD
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#f5f5f5" }} edges={["top"]}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={["top", "bottom"]}>
       <ScrollView style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Settings</Text>
@@ -78,8 +80,8 @@ export default function SettingsScreen() {
           <Switch
             value={soundEnabled}
             onValueChange={setSoundEnabled}
-            trackColor={{ false: "#767577", true: "#34C759" }}
-            thumbColor="#fff"
+            trackColor={{ false: colors.disabled, true: colors.secondary }}
+            thumbColor={colors.textInverse}
           />
         </View>
         <Text style={styles.settingDescription}>
@@ -129,96 +131,99 @@ export default function SettingsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f5f5f5",
+    backgroundColor: colors.background,
   },
   header: {
-    backgroundColor: "#fff",
-    padding: 24,
+    backgroundColor: colors.surface,
+    padding: spacing.sp6,
     alignItems: "center",
     borderBottomWidth: 1,
-    borderBottomColor: "#e0e0e0",
+    borderBottomColor: colors.divider,
   },
   title: {
-    fontSize: 28,
-    fontWeight: "bold",
-    color: "#333",
+    fontSize: typography.h3.fontSize,
+    fontWeight: typography.h3.fontWeight,
+    color: colors.text,
   },
   section: {
-    backgroundColor: "#fff",
-    marginTop: 16,
-    padding: 16,
+    backgroundColor: colors.surface,
+    marginTop: spacing.sp2,
+    padding: spacing.sp2,
     borderTopWidth: 1,
     borderBottomWidth: 1,
-    borderColor: "#e0e0e0",
+    borderColor: colors.divider,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#333",
-    marginBottom: 12,
+    fontSize: typography.h4.fontSize,
+    fontWeight: typography.h4.fontWeight,
+    color: colors.text,
+    marginBottom: spacing.sp3,
   },
   infoRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    paddingVertical: 12,
+    paddingVertical: spacing.sp3,
     borderBottomWidth: 1,
-    borderBottomColor: "#f0f0f0",
+    borderBottomColor: colors.divider,
   },
   label: {
-    fontSize: 16,
-    color: "#666",
+    fontSize: typography.body.fontSize,
+    color: colors.textSecondary,
   },
   value: {
-    fontSize: 16,
-    color: "#333",
-    fontWeight: "500",
+    fontSize: typography.body.fontSize,
+    fontWeight: typography.body.fontWeight,
+    color: colors.text,
   },
   settingRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 12,
+    paddingVertical: spacing.sp3,
   },
   settingLabel: {
-    fontSize: 16,
-    color: "#333",
+    fontSize: typography.body.fontSize,
+    color: colors.text,
   },
   settingDescription: {
-    fontSize: 12,
-    color: "#999",
-    marginTop: 4,
+    fontSize: typography.caption.fontSize,
+    color: colors.textMuted,
+    marginTop: spacing.sp1,
   },
   devButton: {
-    backgroundColor: "#FF9500",
-    padding: 12,
-    borderRadius: 8,
+    backgroundColor: colors.warning,
+    padding: spacing.sp3,
+    borderRadius: radii.button,
     alignItems: "center",
-    marginBottom: 8,
+    marginBottom: spacing.sp2,
+    minHeight: components.button.heightSmall,
   },
   devButtonText: {
-    color: "#fff",
-    fontSize: 14,
-    fontWeight: "600",
+    color: colors.textInverse,
+    fontSize: typography.label.fontSize,
+    fontWeight: typography.label.fontWeight,
   },
   logoutButton: {
-    backgroundColor: "#FF3B30",
-    margin: 16,
-    padding: 16,
-    borderRadius: 8,
+    backgroundColor: colors.danger,
+    margin: spacing.sp2,
+    padding: spacing.sp2,
+    borderRadius: radii.button,
     alignItems: "center",
+    minHeight: components.button.height,
+    ...shadows.sm,
   },
   logoutButtonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
+    color: colors.textInverse,
+    fontSize: typography.body.fontSize,
+    fontWeight: typography.bodyLarge.fontWeight,
   },
   footer: {
-    padding: 24,
+    padding: spacing.sp6,
     alignItems: "center",
   },
   footerText: {
-    fontSize: 12,
-    color: "#999",
+    fontSize: typography.caption.fontSize,
+    color: colors.textMuted,
   },
 });
 

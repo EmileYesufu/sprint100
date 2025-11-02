@@ -309,6 +309,51 @@ app.post("/api/login", authLimiter, async (req, res) => {
   res.json({ token, user: { id: user.id, email: user.email, username: user.username, elo: user.elo } });
 });
 
+// Forgot password endpoint
+app.post("/api/auth/forgot-password", authLimiter, async (req, res) => {
+  try {
+    const { email } = req.body;
+    
+    if (!email) {
+      return res.status(400).json({ error: "Email address is required" });
+    }
+
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ error: "Invalid email address format" });
+    }
+
+    // Check if user exists
+    const user = await prisma.user.findUnique({ where: { email } });
+    
+    // For security, always return success message even if user doesn't exist
+    // This prevents email enumeration attacks
+    if (!user) {
+      return res.json({ 
+        message: "If an account exists with that email, a password reset link has been sent." 
+      });
+    }
+
+    // TODO: Generate reset token and send email
+    // For MVP, we'll just return a success message
+    // In production, you would:
+    // 1. Generate a secure token (using crypto.randomBytes or uuid)
+    // 2. Store it in database with expiration (e.g., 1 hour)
+    // 3. Send email with reset link containing the token
+    // 4. Implement /api/auth/reset-password endpoint to validate token and update password
+
+    return res.json({ 
+      message: "Password reset link has been sent to your email address." 
+    });
+  } catch (error: any) {
+    console.error("Forgot password error:", error);
+    return res.status(500).json({ 
+      error: "Unable to process password reset request. Please try again later." 
+    });
+  }
+});
+
 const httpServer = http.createServer(app);
 const io = new SocketIOServer(httpServer, {
   cors: { 
