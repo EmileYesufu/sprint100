@@ -130,6 +130,7 @@ export default function RegisterScreen({ navigation }: Props) {
       <KeyboardAvoidingView
         style={styles.container}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
       >
       <View style={styles.content}>
         <Text style={styles.title}>Sprint100</Text>
@@ -142,6 +143,8 @@ export default function RegisterScreen({ navigation }: Props) {
           onChangeText={setEmail}
           autoCapitalize="none"
           keyboardType="email-address"
+          textContentType="emailAddress"
+          autoComplete="email"
           editable={!isLoading}
         />
 
@@ -151,6 +154,8 @@ export default function RegisterScreen({ navigation }: Props) {
           value={username}
           onChangeText={setUsername}
           autoCapitalize="none"
+          textContentType="username"
+          autoComplete="username"
           editable={!isLoading}
           maxLength={20}
         />
@@ -161,6 +166,9 @@ export default function RegisterScreen({ navigation }: Props) {
           value={password}
           onChangeText={setPassword}
           secureTextEntry
+          textContentType="newPassword"
+          autoComplete="password-new"
+          passwordRules="minlength: 6;"
           editable={!isLoading}
         />
 
@@ -170,6 +178,8 @@ export default function RegisterScreen({ navigation }: Props) {
           value={confirmPassword}
           onChangeText={setConfirmPassword}
           secureTextEntry
+          textContentType="newPassword"
+          autoComplete="password-new"
           editable={!isLoading}
         />
 
@@ -209,6 +219,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     padding: 24,
+    paddingBottom: 100, // Extra padding to accommodate password autofill overlay
   },
   title: {
     fontSize: 32,
@@ -231,6 +242,7 @@ const styles = StyleSheet.create({
     padding: 12,
     marginBottom: 16,
     fontSize: 16,
+    minHeight: 44, // Ensure touchable area is large enough
   },
   button: {
     backgroundColor: "#007AFF",
