@@ -103,14 +103,6 @@ export interface TrainingConfig {
   seed: number;
 }
 
-export interface RunnerStep {
-  runnerId: string;
-  timestamp: number;
-  side: "left" | "right";
-  totalSteps: number;
-  meters: number;
-}
-
 export interface RunnerState {
   id: string;
   name: string;
@@ -128,7 +120,6 @@ export interface TrainingRaceState {
   startTime?: number;
   elapsedMs: number;
   runners: RunnerState[];
-  stepHistory: RunnerStep[];
 }
 
 export interface TrainingResult {

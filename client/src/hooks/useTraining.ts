@@ -17,7 +17,6 @@ import type {
   TrainingRaceState,
   TrainingResult,
   RunnerState,
-  RunnerStep,
   TrainingRecord,
   LocalEndResult,
 } from "@/types";
@@ -27,7 +26,6 @@ const METERS_PER_STEP = 0.6;
 const FINISH_LINE_METERS = 100;
 
 const STORAGE_KEY_RECORDS = "@sprint100_training_records";
-const STORAGE_KEY_REPLAY = "@sprint100_training_replay";
 
 interface UseTrainingReturn {
   raceState: TrainingRaceState;
@@ -38,9 +36,7 @@ interface UseTrainingReturn {
   abort: () => void;
   reset: () => void;
   rerace: () => void;
-  replay: () => void;
   result: TrainingResult | null;
-  isReplayMode: boolean;
   isRunning: boolean;
   // Local early finish threshold state
   isLocallyEnded: boolean;
@@ -54,10 +50,8 @@ export function useTraining(): UseTrainingReturn {
     status: "setup",
     elapsedMs: 0,
     runners: [],
-    stepHistory: [],
   });
   const [result, setResult] = useState<TrainingResult | null>(null);
-  const [isReplayMode, setIsReplayMode] = useState(false);
   // Client-local early end threshold logic — race ends when top N finish
   const [isLocallyEnded, setIsLocallyEnded] = useState(false);
   const [localEndResult, setLocalEndResult] = useState<LocalEndResult | null>(null);
@@ -71,7 +65,6 @@ export function useTraining(): UseTrainingReturn {
   const pauseTimeRef = useRef<number>(0);
   const pausedDuration = useRef<number>(0);
   const playerState = useRef({ steps: 0, meters: 0, lastSide: null as "left" | "right" | null, finished: false });
-  const replayIndex = useRef<number>(0);
   
   // Immutable finish order tracking - positions are assigned at moment of crossing
   const finishOrder = useRef<string[]>([]);
@@ -144,7 +137,7 @@ export function useTraining(): UseTrainingReturn {
    * Animation loop for AI updates
    */
   const updateLoop = useCallback(() => {
-    if (raceState.status !== "racing" || isReplayMode) {
+    if (raceState.status !== "racing") {
       return;
     }
 
@@ -152,31 +145,13 @@ export function useTraining(): UseTrainingReturn {
     const elapsed = now - startTimeRef.current - pausedDuration.current;
 
     // Update all AI runners
-    const newSteps: RunnerStep[] = [];
-    let allAIFinished = true;
-
     aiRunners.current.forEach((ai) => {
-      const aiSteps = ai.update(elapsed);
-      aiSteps.forEach((step) => {
-        const aiState = ai.getState();
-        newSteps.push({
-          runnerId: aiState.id,
-          timestamp: elapsed,
-          side: step.side,
-          totalSteps: aiState.steps,
-          meters: aiState.meters,
-        });
-      });
-
+      ai.update(elapsed);
       const aiState = ai.getState();
       
       // Mark AI as finished when they cross finish line (immutable position assignment)
       if (aiState.meters >= FINISH_LINE_METERS && !finishPositions.current.has(aiState.id)) {
         markRacerFinished(aiState.id, elapsed);
-      }
-
-      if (!aiState.finished) {
-        allAIFinished = false;
       }
     });
 
@@ -220,7 +195,6 @@ export function useTraining(): UseTrainingReturn {
       ...prev,
       elapsedMs: elapsed,
       runners: updatedRunners,
-      stepHistory: [...prev.stepHistory, ...newSteps],
     }));
 
     // Check if race threshold is reached (early finish logic)
@@ -236,14 +210,13 @@ export function useTraining(): UseTrainingReturn {
     }
 
     animationFrameId.current = requestAnimationFrame(updateLoop);
-  }, [raceState.status, isReplayMode, markRacerFinished, isLocallyEnded]);
+  }, [raceState.status, markRacerFinished, isLocallyEnded]);
 
   /**
    * Start training race
    */
   const start = useCallback((trainingConfig: TrainingConfig) => {
     config.current = trainingConfig;
-    setIsReplayMode(false);
     setResult(null);
 
     // Create AI runners
@@ -283,7 +256,6 @@ export function useTraining(): UseTrainingReturn {
       status: "countdown",
       elapsedMs: 0,
       runners: initialRunners,
-      stepHistory: [],
     });
 
     // Countdown then start
@@ -299,7 +271,7 @@ export function useTraining(): UseTrainingReturn {
    * Disabled when race is locally ended (threshold reached)
    */
   const tap = useCallback((side: "left" | "right") => {
-    if (raceState.status !== "racing" || playerState.current.finished || isReplayMode || isLocallyEnded) {
+    if (raceState.status !== "racing" || playerState.current.finished || isLocallyEnded) {
       return;
     }
 
@@ -315,49 +287,35 @@ export function useTraining(): UseTrainingReturn {
     const now = Date.now();
     const elapsed = now - startTimeRef.current - pausedDuration.current;
 
-    // Add to step history
-    const step: RunnerStep = {
-      runnerId: "player",
-      timestamp: elapsed,
-      side,
-      totalSteps: playerState.current.steps,
-      meters: playerState.current.meters,
-    };
-
-    setRaceState((prev) => ({
-      ...prev,
-      stepHistory: [...prev.stepHistory, step],
-    }));
-
     // Check if player finished (mark with immutable position at moment of crossing)
     if (playerState.current.meters >= FINISH_LINE_METERS && !finishPositions.current.has("player")) {
       markRacerFinished("player", elapsed);
       playerState.current.finished = true;
     }
-  }, [raceState.status, isReplayMode, isLocallyEnded, markRacerFinished]);
+  }, [raceState.status, isLocallyEnded, markRacerFinished]);
 
   /**
    * Pause race
    */
   const pause = useCallback(() => {
-    if (raceState.status === "racing" && !isReplayMode) {
+    if (raceState.status === "racing") {
       pauseTimeRef.current = Date.now();
       if (animationFrameId.current) {
         cancelAnimationFrame(animationFrameId.current);
       }
     }
-  }, [raceState.status, isReplayMode]);
+  }, [raceState.status]);
 
   /**
    * Resume race
    */
   const resume = useCallback(() => {
-    if (pauseTimeRef.current > 0 && !isReplayMode) {
+    if (pauseTimeRef.current > 0) {
       pausedDuration.current += Date.now() - pauseTimeRef.current;
       pauseTimeRef.current = 0;
       animationFrameId.current = requestAnimationFrame(updateLoop);
     }
-  }, [updateLoop, isReplayMode]);
+  }, [updateLoop]);
 
   /**
    * Reset race state but keep config for rerace
@@ -367,9 +325,8 @@ export function useTraining(): UseTrainingReturn {
       cancelAnimationFrame(animationFrameId.current);
       animationFrameId.current = null;
     }
-    setRaceState({ status: "setup", elapsedMs: 0, runners: [], stepHistory: [] });
+    setRaceState({ status: "setup", elapsedMs: 0, runners: [] });
     setResult(null);
-    setIsReplayMode(false);
     // Clear local end state
     setIsLocallyEnded(false);
     setLocalEndResult(null);
@@ -393,9 +350,8 @@ export function useTraining(): UseTrainingReturn {
       cancelAnimationFrame(animationFrameId.current);
       animationFrameId.current = null;
     }
-    setRaceState({ status: "setup", elapsedMs: 0, runners: [], stepHistory: [] });
+    setRaceState({ status: "setup", elapsedMs: 0, runners: [] });
     setResult(null);
-    setIsReplayMode(false);
     // Clear local end state
     setIsLocallyEnded(false);
     setLocalEndResult(null);
@@ -502,15 +458,12 @@ export function useTraining(): UseTrainingReturn {
     setResult(resultData);
     setRaceState((prev) => ({ ...prev, status: "finished", runners: sorted }));
 
-    // Save replay data
-    await AsyncStorage.setItem(STORAGE_KEY_REPLAY, JSON.stringify(raceState.stepHistory));
-
     // Update records if player finished and this is their best
     const playerResult = resultData.runners.find((r) => r.isPlayer);
     if (playerResult && playerResult.finishTime) {
       await updateRecords(config.current!, playerResult.position, playerResult.finishTime);
     }
-  }, [raceState.stepHistory]);
+  }, []);
 
   /**
    * Update local records
@@ -542,80 +495,9 @@ export function useTraining(): UseTrainingReturn {
     }
   };
 
-  /**
-   * Replay race from stored step history
-   */
-  const replay = useCallback(async () => {
-    try {
-      const stored = await AsyncStorage.getItem(STORAGE_KEY_REPLAY);
-      if (!stored) return;
-
-      const steps: RunnerStep[] = JSON.parse(stored);
-      if (steps.length === 0) return;
-
-      setIsReplayMode(true);
-      replayIndex.current = 0;
-
-      // Reset state
-      const initialRunners: RunnerState[] = raceState.runners.map((r) => ({
-        ...r,
-        steps: 0,
-        meters: 0,
-        finished: false,
-        finishTime: undefined,
-      }));
-
-      setRaceState({
-        status: "racing",
-        elapsedMs: 0,
-        runners: initialRunners,
-        stepHistory: steps,
-      });
-
-      // Replay animation
-      const replayStart = Date.now();
-      const replayLoop = () => {
-        const elapsed = Date.now() - replayStart;
-        const currentSteps = steps.filter((s) => s.timestamp <= elapsed);
-
-        // Update runner states from steps
-        const runnerMap = new Map<string, { steps: number; meters: number }>();
-        currentSteps.forEach((s) => {
-          runnerMap.set(s.runnerId, { steps: s.totalSteps, meters: s.meters });
-        });
-
-        const updatedRunners = initialRunners.map((r) => {
-          const stepData = runnerMap.get(r.id) || { steps: 0, meters: 0 };
-          return {
-            ...r,
-            steps: stepData.steps,
-            meters: stepData.meters,
-            finished: stepData.meters >= FINISH_LINE_METERS,
-          };
-        });
-
-        setRaceState((prev) => ({
-          ...prev,
-          elapsedMs: elapsed,
-          runners: updatedRunners,
-        }));
-
-        if (elapsed < steps[steps.length - 1].timestamp + 1000) {
-          requestAnimationFrame(replayLoop);
-        } else {
-          setRaceState((prev) => ({ ...prev, status: "finished" }));
-        }
-      };
-
-      replayLoop();
-    } catch (error) {
-      console.error("Error replaying race:", error);
-    }
-  }, [raceState.runners]);
-
   // Start animation loop when racing
   useEffect(() => {
-    if (raceState.status === "racing" && !isReplayMode) {
+    if (raceState.status === "racing") {
       animationFrameId.current = requestAnimationFrame(updateLoop);
     }
 
@@ -624,7 +506,7 @@ export function useTraining(): UseTrainingReturn {
         cancelAnimationFrame(animationFrameId.current);
       }
     };
-  }, [raceState.status, updateLoop, isReplayMode]);
+  }, [raceState.status, updateLoop]);
 
   const isRunning = raceState.status === "racing" || raceState.status === "countdown";
 
@@ -637,9 +519,7 @@ export function useTraining(): UseTrainingReturn {
     abort,
     reset,
     rerace,
-    replay,
     result,
-    isReplayMode,
     isRunning,
     // Local early finish threshold state
     isLocallyEnded,

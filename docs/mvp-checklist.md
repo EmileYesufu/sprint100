@@ -2,6 +2,7 @@
 
 ## Gameplay
 - [x] Resilient race flow wired
+- [x] Training replays trimmed for MVP
 
 ## UI/UX
 - [ ]
