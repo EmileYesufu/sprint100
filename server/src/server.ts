@@ -113,16 +113,26 @@ const authenticateToken = (req: any, res: any, next: any) => {
 };
 
 // Health check endpoints
-app.get("/health", (req, res) => {
+app.get("/health/live", (req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
-app.get("/ready", async (req, res) => {
+app.get("/health/ready", async (req, res) => {
   try {
     await prisma.$queryRaw`SELECT 1`;
-    res.json({ status: "ready", database: "connected", timestamp: new Date().toISOString() });
-  } catch (error) {
-    res.status(503).json({ status: "not ready", database: "disconnected", error: "Database connection failed" });
+    const pendingQueue = await prisma.matchQueue.count({ where: { status: "PENDING" } });
+    res.json({
+      status: "ready",
+      database: "connected",
+      pendingQueue,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error: any) {
+    res.status(503).json({
+      status: "not ready",
+      database: "disconnected",
+      error: error?.message ?? "Database connection failed",
+    });
   }
 });
 

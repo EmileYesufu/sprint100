@@ -5,6 +5,13 @@
 - `ALLOWED_ORIGINS`: Comma-separated list of front-end origins allowed by CORS.
 - Mobile builds should embed `EXPO_PUBLIC_API_URL` (Expo/EAS) for connecting to the appropriate environment. For managed distribution, update `app.json` / `app.config.ts` and re-run builds.
 
+## Monitoring / Observability
+
+- `GET /health/live` — quick liveness probe (returns status + timestamp).
+- `GET /health/ready` — readiness probe (checks database connectivity and counts pending queue entries).
+- Wire these endpoints into your uptime provider (e.g., Pingdom, New Relic Synthetics, CloudWatch Synthetics) to alert on non-200 responses or slow response times. Poll `/health/live` frequently (e.g., every 30s) and `/health/ready` at a lower cadence (e.g., 1 min).
+- Log tailing: `docker compose logs -f server` (single container) or `docker logs -f sprint100_prod_server`. For cloud providers, tail via their CLI/console equivalent (e.g., `heroku logs --tail`).
+
 ## Rollback
 
 To roll back to a previous server image/build:

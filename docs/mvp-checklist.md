@@ -23,3 +23,4 @@
 ## Deployment/Release
 - [ ]
 - [x] Deployment scripts ready
+- [x] Monitoring/health ready
