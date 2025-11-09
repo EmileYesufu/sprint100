@@ -22,7 +22,8 @@
     "test:coverage": "jest --coverage",
     "docker:dev": "docker-compose up -d",
     "docker:prod": "docker-compose -f deploy/docker-compose.prod.yml up -d",
-    "docker:down": "docker-compose down"
+    "docker:down": "docker-compose down",
+    "lint": "tsc --noEmit"
   },
   "keywords": [],
   "author": "",

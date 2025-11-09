@@ -16,4 +16,4 @@ echo "Applying Prisma migrations..."
 npx dotenv -e .env.test -- npm --prefix server run db:migrate:deploy
 
 echo "Running integration tests with coverage..."
-npx dotenv -e .env.test -- npm --prefix server run test -- --coverage
+npx dotenv -e .env.test -- npm --prefix server run test -- --coverage --coverageReporters=text-summary --coverageReporters=lcov

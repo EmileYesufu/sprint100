@@ -19,6 +19,8 @@
     "db:migrate": "cd server && npx prisma migrate deploy",
     "db:generate": "cd server && npx prisma generate",
     "db:studio": "cd server && npx prisma studio",
+    "lint": "npm run lint --prefix server",
+    "test:unit": "npm run test --prefix server -- --coverage --coverageReporters=text-summary --coverageReporters=lcov && npm run test --prefix client -- --coverage --coverageReporters=text-summary --coverageReporters=lcov --watchAll=false",
     "test:integration": "scripts/run-integration-tests.sh"
   },
   "devDependencies": {
