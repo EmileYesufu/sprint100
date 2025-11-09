@@ -10,14 +10,13 @@ React Native + Expo TypeScript client for the multiplayer 100m sprint game.
    ```
 
 2. **Configure server URL:**
-   - Open `src/config.ts`
-   - For iOS Simulator: use `http://localhost:4000` (default)
-   - For physical device or Android emulator: replace with your machine's IP address
+   - Create `.env.production` with:
      ```bash
-     # Find your local IP on macOS:
-     ipconfig getifaddr en0
-     # Then update SERVER_URL to: http://YOUR_IP:4000
+     EXPO_PUBLIC_API_URL=https://sprint100-production.up.railway.app
+     EXPO_PUBLIC_WS_URL=wss://sprint100-production.up.railway.app
+     NODE_ENV=production
      ```
+   - (Optional) For local development, create `.env.development` with your localhost settings.
 
 3. **Start the development server:**
    ```bash
@@ -80,10 +79,8 @@ client/
 ## Important Notes
 
 ### Server URL Configuration
-**Before testing on a physical device or Android emulator**, update `src/config.ts`:
-```typescript
-export const SERVER_URL = "http://YOUR_LOCAL_IP:4000";
-```
+Production builds read from `.env.production` (`https://sprint100-production.up.railway.app`).  
+For local testing, use a separate `.env.development` and ensure Metro is restarted after changes.
 
 ### Portrait Orientation
 The app is configured for portrait mode only in `app.json`:

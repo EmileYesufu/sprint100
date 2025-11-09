@@ -24,8 +24,9 @@ npm run web
 # Copy environment template
 cp .env.example .env
 
-# Edit .env with your API URL
-EXPO_PUBLIC_API_URL=http://localhost:4000
+# Default to production API
+EXPO_PUBLIC_API_URL=https://sprint100-production.up.railway.app
+EXPO_PUBLIC_WS_URL=wss://sprint100-production.up.railway.app
 ```
 
 ## 📱 Building for Production
@@ -68,25 +69,20 @@ npm run submit:android
 
 ## 🔧 Environment Configuration
 
-### Development
-```bash
-# .env file
-EXPO_PUBLIC_API_URL=http://localhost:4000
-APP_ENV=development
-```
-
-### Preview/Staging
-```bash
-# .env file
-EXPO_PUBLIC_API_URL=https://staging-api.sprint100.com
-APP_ENV=preview
-```
-
 ### Production
 ```bash
-# .env file
-EXPO_PUBLIC_API_URL=https://api.sprint100.com
-APP_ENV=production
+# .env.production file
+EXPO_PUBLIC_API_URL=https://sprint100-production.up.railway.app
+EXPO_PUBLIC_WS_URL=wss://sprint100-production.up.railway.app
+NODE_ENV=production
+```
+
+### Development
+```bash
+# .env.development file (optional for local work)
+EXPO_PUBLIC_API_URL=http://localhost:4000
+EXPO_PUBLIC_WS_URL=ws://localhost:4000
+NODE_ENV=development
 ```
 
 ## 📋 Build Commands

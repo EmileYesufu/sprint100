@@ -25,3 +25,4 @@
 - [x] Deployment scripts ready
 - [x] Monitoring/health ready
 - [x] Store collateral verified
+- [x] Production endpoints configured (`https://sprint100-production.up.railway.app`)

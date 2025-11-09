@@ -1123,9 +1123,13 @@ if (process.env.NODE_ENV !== 'test' && process.env.NODE_ENV !== 'testing') {
     console.log(`   Listening on: http://${HOST}:${PORT}`);
     console.log(`   Local access: http://localhost:${PORT}`);
     console.log(`   Health check: http://localhost:${PORT}/health`);
-    if (HOST === "0.0.0.0") {
-      console.log(`   Network access: http://192.168.1.250:${PORT}`);
-      console.log(`\n💡 To expose publicly, run: npm run start:ngrok`);
+
+    const primaryOrigin = ALLOWED_ORIGINS.find((origin) => origin.startsWith("http"));
+    if (primaryOrigin) {
+      console.log(`   External access: ${primaryOrigin}`);
+    }
+    if (HOST === "0.0.0.0" && !primaryOrigin) {
+      console.log(`   External access: configure ALLOWED_ORIGINS for public usage`);
     }
     console.log("");
   });
