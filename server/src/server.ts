@@ -1074,7 +1074,7 @@ async function endMatch(matchOrRace: any, finishedPlayers: any[]) {
 }
 
 // Export app for testing
-export { app };
+export { app, httpServer };
 
 // Only start server if not in test environment
 if (process.env.NODE_ENV !== 'test' && process.env.NODE_ENV !== 'testing') {
