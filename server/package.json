@@ -7,6 +7,7 @@
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
+    "postinstall": "prisma generate",
     "start:prod": "cross-env NODE_ENV=production node dist/server.js",
     "start:test": "cross-env NODE_ENV=test node dist/server.js",
     "start:ngrok": "npx localtunnel --port 4000",
@@ -68,5 +69,8 @@
   },
   "prisma": {
     "seed": "ts-node seed/seed.ts"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }

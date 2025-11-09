@@ -1,53 +1,38 @@
-# Sprint100 Server Production Dockerfile
+FROM node:20-alpine AS deps
+
+WORKDIR /app
+
+COPY package.json package-lock.json* pnpm-lock.yaml* yarn.lock* .npmrc* ./
+
+RUN if [ -f package-lock.json ]; then npm ci; \
+    elif [ -f pnpm-lock.yaml ]; then npm i -g pnpm && pnpm i --frozen-lockfile; \
+    elif [ -f yarn.lock ]; then yarn install --frozen-lockfile; \
+    else npm i; fi
+
 FROM node:20-alpine AS builder
 
-# Set working directory
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
-COPY prisma ./prisma/
-
-# Install dependencies
-RUN npm ci
-
-# Copy source code
+COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Generate Prisma client
 RUN npx prisma generate
-
-# Build TypeScript
 RUN npm run build
 
-# Remove dev dependencies
-RUN npm prune --omit=dev
+FROM node:20-alpine AS runner
 
-# Production stage
-FROM node:20-alpine AS production
-
-# Create app user for security
-RUN addgroup -g 1001 -S nodejs
-RUN adduser -S sprint100 -u 1001
-
-# Set working directory
 WORKDIR /app
 
-# Copy built application
-COPY --from=builder --chown=sprint100:nodejs /app/node_modules ./node_modules
-COPY --from=builder --chown=sprint100:nodejs /app/dist ./dist
-COPY --from=builder --chown=sprint100:nodejs /app/prisma ./prisma
-COPY --from=builder --chown=sprint100:nodejs /app/package*.json ./
+ENV NODE_ENV=production
 
-# Switch to app user
-USER sprint100
+RUN apk add --no-cache wget
 
-# Expose port
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/prisma ./prisma
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s CMD wget -qO- http://localhost:4000/health/live || exit 1
+
 EXPOSE 4000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:4000/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"
-
-# Start production server
-CMD ["node", "dist/server.js"]
+CMD sh -c "npx prisma migrate deploy && node dist/server.js"
