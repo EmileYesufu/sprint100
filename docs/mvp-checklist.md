@@ -7,7 +7,7 @@
 - [ ]
 
 ## Logic/Backend
-- [ ]
+- [x] Auth refresh aligned
 
 ## Integration & Testing
 - [ ]

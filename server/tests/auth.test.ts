@@ -3,6 +3,8 @@ import request from 'supertest';
 import { app } from '../src/server';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import { JWT_SECRET } from '../src/config';
 
 const prisma = new PrismaClient();
 
@@ -152,6 +154,103 @@ describe('Authentication API', () => {
         .expect(401);
 
       expect(response.body).toHaveProperty('error');
+    });
+  });
+
+  describe('POST /api/auth/refresh and /api/refresh', () => {
+    const credentials = {
+      email: 'refresh@example.com',
+      username: 'refreshuser',
+      password: 'password123',
+    };
+
+    let userId: number;
+    let latestToken: string;
+
+    beforeEach(async () => {
+      const hashedPassword = await bcrypt.hash(credentials.password, 10);
+      const user = await prisma.user.create({
+        data: {
+          email: credentials.email,
+          username: credentials.username,
+          password: hashedPassword,
+        },
+      });
+
+      userId = user.id;
+
+      const loginResponse = await request(app)
+        .post('/api/login')
+        .send({ email: credentials.email, password: credentials.password })
+        .expect(200);
+
+      latestToken = loginResponse.body.token;
+    });
+
+    const expectSuccessfulRefresh = (body: any) => {
+      expect(body).toHaveProperty('token');
+      expect(typeof body.token).toBe('string');
+      expect(body).toHaveProperty('user');
+      expect(body.user).toEqual(
+        expect.objectContaining({
+          id: userId,
+          email: credentials.email,
+          username: credentials.username,
+          elo: expect.any(Number),
+        })
+      );
+    };
+
+    it('should refresh token via /api/auth/refresh', async () => {
+      const response = await request(app)
+        .post('/api/auth/refresh')
+        .set('Authorization', `Bearer ${latestToken}`)
+        .expect(200);
+
+      expectSuccessfulRefresh(response.body);
+    });
+
+    it('legacy /api/refresh should proxy to the new handler', async () => {
+      const newRouteResponse = await request(app)
+        .post('/api/auth/refresh')
+        .set('Authorization', `Bearer ${latestToken}`)
+        .expect(200);
+
+      const legacyResponse = await request(app)
+        .post('/api/refresh')
+        .set('Authorization', `Bearer ${latestToken}`)
+        .expect(200);
+
+      expectSuccessfulRefresh(newRouteResponse.body);
+      expectSuccessfulRefresh(legacyResponse.body);
+      expect(Object.keys(legacyResponse.body).sort()).toEqual(
+        Object.keys(newRouteResponse.body).sort()
+      );
+      expect(legacyResponse.body.user).toEqual(newRouteResponse.body.user);
+    });
+
+    it('should reject refresh with invalid token', async () => {
+      const response = await request(app)
+        .post('/api/auth/refresh')
+        .set('Authorization', 'Bearer invalid-token')
+        .expect(403);
+
+      expect(response.body).toHaveProperty('error', 'Invalid or expired token');
+    });
+
+    it('should reject refresh with expired token', async () => {
+      const expiredToken = jwt.sign(
+        { userId, email: credentials.email, username: credentials.username },
+        JWT_SECRET,
+        { expiresIn: '-1s' }
+      );
+
+      const response = await request(app)
+        .post('/api/auth/refresh')
+        .set('Authorization', `Bearer ${expiredToken}`)
+        .expect(403);
+
+      expect(response.body).toHaveProperty('error', 'Invalid or expired token');
     });
   });
 });

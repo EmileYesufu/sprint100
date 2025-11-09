@@ -267,29 +267,39 @@ app.get("/api/users/:userId/matches", authenticateToken, async (req, res) => {
   }
 });
 
-// Token refresh endpoint (protected)
-app.post("/api/refresh", authenticateToken, async (req, res) => {
+const handleTokenRefresh = async (req: express.Request, res: express.Response) => {
   try {
-    const { userId } = req.user;
-    const user = await prisma.user.findUnique({ 
-      where: { id: userId },
-      select: { id: true, email: true, username: true, elo: true }
+    const authUser = req.user;
+    if (!authUser?.userId) {
+      return res.status(401).json({ error: "unauthorized" });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: authUser.userId },
+      select: { id: true, email: true, username: true, elo: true },
     });
-    
+
     if (!user) {
       return res.status(404).json({ error: "user not found" });
     }
-    
+
     const newToken = jwt.sign(
       { userId: user.id, email: user.email, username: user.username },
       JWT_SECRET,
-      { expiresIn: '24h' }
+      { expiresIn: "24h" }
     );
-    
+
     res.json({ token: newToken, user });
   } catch (error) {
     res.status(500).json({ error: "failed to refresh token" });
   }
+};
+
+app.post("/api/auth/refresh", authenticateToken, handleTokenRefresh);
+
+// DEPRECATED: use /api/auth/refresh; maintained temporarily for legacy clients
+app.post("/api/refresh", authenticateToken, (req, res) => {
+  return handleTokenRefresh(req, res);
 });
 
 // Rate limiting for auth endpoints
