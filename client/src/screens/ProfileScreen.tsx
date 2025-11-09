@@ -29,6 +29,7 @@ export default function ProfileScreen() {
   const { elo, refreshElo } = useElo();
   const [matchHistory, setMatchHistory] = useState<MatchHistoryEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const fadeAnim = React.useRef(new Animated.Value(0)).current;
   const reduceMotion = useReducedMotion();
 
@@ -94,11 +95,17 @@ export default function ProfileScreen() {
           };
         });
         setMatchHistory(formattedMatches);
+        setError(null);
       } else {
-        console.error("Failed to load match history:", response.status, response.statusText);
+        const message = `Failed to load match history (${response.status})`;
+        console.error(message, response.statusText);
+        setError(message);
+        setMatchHistory([]);
       }
-    } catch (error) {
-      console.error("Error loading match history:", error);
+    } catch (err: any) {
+      console.error("Error loading match history:", err);
+      setError(err.message || "Unable to load match history.");
+      setMatchHistory([]);
     } finally {
       setIsLoading(false);
     }
@@ -168,11 +175,20 @@ export default function ProfileScreen() {
         
         {isLoading ? (
           <ActivityIndicator size="large" color={colors.accent} style={styles.loader} />
+        ) : error ? (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyTitle}>Unable to load match history</Text>
+            <Text style={styles.emptySubtitle}>{error}</Text>
+            <TouchableOpacity
+              style={styles.retryButton}
+              onPress={loadMatchHistory}
+              accessibilityRole="button"
+            >
+              <Text style={styles.retryButtonText}>Try Again</Text>
+            </TouchableOpacity>
+          </View>
         ) : matchHistory.length === 0 ? (
-          <Text 
-            style={styles.emptyText}
-            allowFontScaling={accessibility.allowFontScaling}
-          >
+          <Text style={styles.emptyText} allowFontScaling={accessibility.allowFontScaling}>
             No matches played yet
           </Text>
         ) : (
@@ -342,6 +358,33 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textAlign: "center",
     marginTop: spacing.sp8,
+  },
+  emptyState: {
+    alignItems: "center",
+    paddingVertical: spacing.sp8,
+    gap: spacing.sp3,
+  },
+  emptyTitle: {
+    fontSize: typography.body.fontSize,
+    fontWeight: typography.bodyLarge.fontWeight,
+    color: colors.text,
+  },
+  emptySubtitle: {
+    fontSize: typography.bodySmall.fontSize,
+    color: colors.textSecondary,
+    textAlign: "center",
+    paddingHorizontal: spacing.sp6,
+  },
+  retryButton: {
+    backgroundColor: colors.accent,
+    paddingHorizontal: spacing.sp4,
+    paddingVertical: spacing.sp2,
+    borderRadius: radii.button,
+  },
+  retryButtonText: {
+    color: colors.textInverse,
+    fontSize: typography.bodySmall.fontSize,
+    fontWeight: typography.label.fontWeight,
   },
   matchCard: {
     flexDirection: "row",

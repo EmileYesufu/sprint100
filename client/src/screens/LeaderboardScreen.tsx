@@ -3,7 +3,7 @@
  * Displays top players ranked by Elo rating
  */
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   View,
   Text,
@@ -31,6 +31,9 @@ export default function LeaderboardScreen() {
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [cursor, setCursor] = useState<number | null>(null);
+  const [hasMore, setHasMore] = useState(true);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const reduceMotion = useReducedMotion();
 
@@ -59,54 +62,74 @@ export default function LeaderboardScreen() {
     }
   }, [reduceMotion]);
 
-  const loadLeaderboard = async (isRefresh = false) => {
-    if (!token) return;
+  const loadLeaderboard = useCallback(async (options?: { refresh?: boolean; cursor?: number | null }) => {
+    if (!token || (isLoading && !options?.refresh)) return;
+
+    const isRefresh = Boolean(options?.refresh);
+    const nextCursor = options?.cursor ?? (isRefresh ? null : cursor);
 
     if (isRefresh) {
       setIsRefreshing(true);
+      setHasMore(true);
+      setCursor(null);
     } else {
       setIsLoading(true);
     }
 
     try {
-      // TODO: Replace with actual endpoint when server implements it
-      const response = await fetch(`${getServerUrl()}/api/leaderboard`, {
+      const params = new URLSearchParams();
+      if (nextCursor) {
+        params.set("cursor", String(nextCursor));
+      }
+      params.set("limit", "20");
+
+      const response = await fetch(`${getServerUrl()}/api/leaderboard?${params.toString()}`, {
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        // API returns { success: true, data: [...] }
-        const entries = data.data || data.leaderboard || [];
-        // Transform to include userId if not present
-        const formattedEntries: LeaderboardEntry[] = entries.map((entry: any, index: number) => ({
-          userId: entry.userId || entry.id || index + 1,
-          email: entry.email || entry.username || `player${index + 1}`,
-          username: entry.username || entry.email || `Player ${index + 1}`,
-          elo: entry.elo || 1000,
-          rank: entry.rank || index + 1,
-        }));
-        setLeaderboard(formattedEntries);
+      if (!response.ok) {
+        throw new Error(`Failed to load leaderboard (${response.status})`);
       }
-    } catch (error) {
-      console.error("Error loading leaderboard:", error);
-      // Set placeholder data for development
-      setLeaderboard([
-        { userId: 1, email: "player1@example.com", elo: 1500, rank: 1 },
-        { userId: 2, email: "player2@example.com", elo: 1450, rank: 2 },
-        { userId: 3, email: "player3@example.com", elo: 1400, rank: 3 },
-      ]);
+
+      const data = await response.json();
+      const entries = data.data || data.leaderboard || [];
+      const endCursor = data.nextCursor ?? null;
+
+      const formattedEntries: LeaderboardEntry[] = entries.map((entry: any, index: number) => ({
+        userId: entry.userId || entry.id || index + 1,
+        email: entry.email || entry.username || `player${index + 1}`,
+        username: entry.username || entry.email || `Player ${index + 1}`,
+        elo: entry.elo ?? 1000,
+        rank: entry.rank ?? index + 1,
+      }));
+
+      setLeaderboard((prev) => (isRefresh ? formattedEntries : [...prev, ...formattedEntries]));
+      setCursor(endCursor);
+      setHasMore(Boolean(endCursor));
+      setError(null);
+    } catch (err: any) {
+      console.error("Error loading leaderboard:", err);
+      setError(err.message || "Unable to load leaderboard.");
+      if (isRefresh) {
+        setLeaderboard([]);
+      }
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  };
+  }, [token, cursor, isLoading]);
 
   const handleRefresh = () => {
-    loadLeaderboard(true);
+    loadLeaderboard({ refresh: true });
+  };
+
+  const handleLoadMore = () => {
+    if (!isLoading && hasMore) {
+      loadLeaderboard({ cursor });
+    }
   };
 
   const navigation = useNavigation();
@@ -149,7 +172,7 @@ export default function LeaderboardScreen() {
       </Animated.View>
 
       {/* Leaderboard List */}
-      {isLoading && !isRefreshing ? (
+      {isLoading && leaderboard.length === 0 ? (
         <ActivityIndicator size="large" color={colors.accent} style={styles.loader} />
       ) : (
         <FlatList
@@ -162,14 +185,29 @@ export default function LeaderboardScreen() {
               onRefresh={handleRefresh}
               tintColor={colors.accent}
             />
+          onEndReached={handleLoadMore}
+          onEndReachedThreshold={0.5}
+          ListFooterComponent={
+            hasMore && leaderboard.length > 0 ? (
+              <View style={styles.footer}>
+                <ActivityIndicator size="small" color={colors.accent} />
+              </View>
+            ) : null
           }
           ListEmptyComponent={
-            <Text 
-              style={styles.emptyText}
-              allowFontScaling={accessibility.allowFontScaling}
-            >
-              No players on leaderboard yet
-            </Text>
+            <View style={styles.emptyState}>
+              {error ? (
+                <>
+                  <Text style={styles.emptyTitle}>Unable to load leaderboard</Text>
+                  <Text style={styles.emptySubtitle}>{error}</Text>
+                  <TouchableOpacity style={styles.retryButton} onPress={() => loadLeaderboard({ refresh: true })}>
+                    <Text style={styles.retryButtonText}>Try Again</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <Text style={styles.emptyText}>No players on leaderboard yet.</Text>
+              )}
+            </View>
           }
           renderItem={({ item }) => {
             const isCurrentUser = item.userId === user?.id;
@@ -236,6 +274,36 @@ export default function LeaderboardScreen() {
 }
 
 const styles = StyleSheet.create({
+  footer: {
+    paddingVertical: spacing.sp4,
+  },
+  emptyState: {
+    alignItems: "center",
+    paddingVertical: spacing.sp8,
+    gap: spacing.sp3,
+  },
+  emptyTitle: {
+    fontSize: typography.body.fontSize,
+    fontWeight: typography.bodyLarge.fontWeight,
+    color: colors.text,
+  },
+  emptySubtitle: {
+    fontSize: typography.bodySmall.fontSize,
+    color: colors.textSecondary,
+    textAlign: "center",
+    paddingHorizontal: spacing.sp6,
+  },
+  retryButton: {
+    backgroundColor: colors.accent,
+    paddingHorizontal: spacing.sp4,
+    paddingVertical: spacing.sp2,
+    borderRadius: radii.button,
+  },
+  retryButtonText: {
+    color: colors.textInverse,
+    fontSize: typography.bodySmall.fontSize,
+    fontWeight: typography.label.fontWeight,
+  },
   container: {
     flex: 1,
     backgroundColor: colors.background, // Dark background
