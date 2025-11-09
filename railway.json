@@ -1,17 +1,4 @@
 {
-  "build": {
-    "builder": "DOCKERFILE",
-    "dockerfilePath": "Dockerfile"
-  },
-  "start": {
-    "command": "node dist/server.js"
-  },
-  "env": {
-    "NODE_ENV": "production",
-    "DATABASE_URL": "",
-    "JWT_SECRET": "",
-    "ALLOWED_ORIGINS": "https://sprint100.app,https://testflight.apple.com",
-    "SUPERUSER_EMAIL": "",
-    "SUPERUSER_PASSWORD": ""
-  }
+  "build": "docker build -t sprint100-backend .",
+  "start": "docker run -p 4000:4000 sprint100-backend"
 }
