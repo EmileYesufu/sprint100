@@ -5,6 +5,7 @@
 
 ## UI/UX
 - [ ]
+- [x] Forgot password complete
 
 ## Logic/Backend
 - [x] Auth refresh aligned

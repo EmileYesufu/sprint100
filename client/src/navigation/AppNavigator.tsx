@@ -18,6 +18,7 @@ import OnboardingScreen from "@/screens/OnboardingScreen";
 import LoginScreen from "@/screens/Auth/LoginScreen";
 import RegisterScreen from "@/screens/Auth/RegisterScreen";
 import ForgotPasswordScreen from "@/screens/Auth/ForgotPasswordScreen";
+import ResetPasswordScreen from "@/screens/Auth/ResetPasswordScreen";
 
 // Race Screens
 import QueueScreen from "@/screens/Race/QueueScreen";
@@ -39,6 +40,7 @@ export type AuthStackParamList = {
   Login: undefined;
   Register: undefined;
   ForgotPassword: undefined;
+  ResetPassword: { token?: string } | undefined;
 };
 
 export type RaceStackParamList = {
@@ -103,6 +105,11 @@ function AuthNavigator({ initialRouteName = "Onboarding" }: { initialRouteName?:
         name="ForgotPassword"
         component={ForgotPasswordScreen}
         options={{ title: "Forgot Password", headerShown: false }}
+      />
+      <AuthStack.Screen
+        name="ResetPassword"
+        component={ResetPasswordScreen}
+        options={{ title: "Reset Password", headerShown: false }}
       />
     </AuthStack.Navigator>
   );

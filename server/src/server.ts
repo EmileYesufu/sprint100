@@ -40,6 +40,7 @@ import {
   type PersistedResultPlayer,
 } from "./services/matchStore";
 import { MatchStatus, QueueStatus } from "@prisma/client";
+import { createPasswordResetRequest, PasswordResetError, resetPasswordWithToken } from "./services/passwordResetService";
 
 // Extend Express Request type to include user property
 declare global {
@@ -369,46 +370,58 @@ app.post("/api/login", authLimiter, async (req, res) => {
 });
 
 // Forgot password endpoint
-app.post("/api/auth/forgot-password", authLimiter, async (req, res) => {
+const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const forgotPasswordHandler = async (req: express.Request, res: express.Response) => {
   try {
     const { email } = req.body;
-    
+
     if (!email) {
-      return res.status(400).json({ error: "Email address is required" });
+      return res.status(400).json({ error: { code: "invalid_request", message: "Email address is required." } });
     }
 
-    // Basic email validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
-      return res.status(400).json({ error: "Invalid email address format" });
+      return res.status(400).json({ error: { code: "invalid_email", message: "Invalid email address format." } });
     }
 
-    // Check if user exists
-    const user = await prisma.user.findUnique({ where: { email } });
-    
-    // For security, always return success message even if user doesn't exist
-    // This prevents email enumeration attacks
-    if (!user) {
-      return res.json({ 
-        message: "If an account exists with that email, a password reset link has been sent." 
+    await createPasswordResetRequest(email);
+
+    return res.json({
+      message: "If an account exists with that email, a password reset link has been sent.",
+    });
+  } catch (error) {
+    console.error("Forgot password error:", error);
+    return res.status(500).json({
+      error: { code: "server_error", message: "Unable to process password reset request. Please try again later." },
+    });
+  }
+};
+
+app.post("/api/auth/forgot", authLimiter, forgotPasswordHandler);
+app.post("/api/auth/forgot-password", authLimiter, forgotPasswordHandler);
+
+app.post("/api/auth/reset", authLimiter, async (req, res) => {
+  try {
+    const { token, password } = req.body || {};
+
+    if (!token || !password) {
+      return res.status(400).json({
+        error: { code: "invalid_request", message: "Token and new password are required." },
       });
     }
 
-    // TODO: Generate reset token and send email
-    // For MVP, we'll just return a success message
-    // In production, you would:
-    // 1. Generate a secure token (using crypto.randomBytes or uuid)
-    // 2. Store it in database with expiration (e.g., 1 hour)
-    // 3. Send email with reset link containing the token
-    // 4. Implement /api/auth/reset-password endpoint to validate token and update password
+    await resetPasswordWithToken(token, password);
 
-    return res.json({ 
-      message: "Password reset link has been sent to your email address." 
-    });
+    return res.json({ message: "Password reset successful. You can now log in with your new password." });
   } catch (error: any) {
-    console.error("Forgot password error:", error);
-    return res.status(500).json({ 
-      error: "Unable to process password reset request. Please try again later." 
+    if (error instanceof PasswordResetError) {
+      const status = error.code === "invalid_password" ? 400 : 400;
+      return res.status(status).json({ error: { code: error.code, message: error.message } });
+    }
+
+    console.error("Reset password error:", error);
+    return res.status(500).json({
+      error: { code: "server_error", message: "Unable to reset password. Please try again later." },
     });
   }
 });

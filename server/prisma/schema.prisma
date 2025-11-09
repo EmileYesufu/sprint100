@@ -18,6 +18,7 @@ model User {
   queueEntries MatchQueue[]
   challengesSent Challenge[]     @relation("ChallengesSent")
   challengesReceived Challenge[] @relation("ChallengesReceived")
+  resetTokens PasswordResetToken[]
   
   // Add computed fields for leaderboard
   matchesPlayed Int @default(0)
@@ -72,6 +73,19 @@ model Challenge {
   match        Match?           @relation(fields: [matchId], references: [id])
 
   @@unique([challengerId, opponentId, status], name: "unique_active_challenge")
+}
+
+model PasswordResetToken {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  tokenHash  String   @unique
+  expiresAt  DateTime
+  consumed   Boolean  @default(false)
+  consumedAt DateTime?
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id])
+
+  @@index([userId, consumed, expiresAt])
 }
 
 enum QueueStatus {

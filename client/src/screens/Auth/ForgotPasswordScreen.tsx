@@ -16,7 +16,7 @@ import {
   Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { getServerUrl } from "@/config";
+import { requestPasswordReset } from "@/services/passwordResetClient";
 import { validateEmail } from "@/utils/validateEmail";
 import { theme } from "@/theme";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -28,56 +28,34 @@ type Props = NativeStackScreenProps<AuthStackParamList, "ForgotPassword">;
 
 export default function ForgotPasswordScreen({ navigation }: Props) {
   const [email, setEmail] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handleReset = async () => {
     if (!email) {
-      Alert.alert("Error", "Please enter your email address.");
+      setErrorMessage("Please enter your email address.");
       return;
     }
 
     // Validate email format and domain whitelist
     const emailValidation = validateEmail(email);
     if (!emailValidation.valid) {
-      Alert.alert("Invalid Email", emailValidation.message || "Please enter a valid email address.");
+      setErrorMessage(emailValidation.message || "Please enter a valid email address.");
       return;
     }
 
-    setIsLoading(true);
+    setStatus("loading");
+    setErrorMessage(null);
 
     try {
-      const response = await fetch(`${getServerUrl()}/api/auth/forgot-password`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || data.error || "Unable to send reset link.");
-      }
-
-      Alert.alert(
-        "Success",
-        data.message || "Check your inbox for a password reset link.",
-        [
-          {
-            text: "OK",
-            onPress: () => navigation.goBack(),
-          },
-        ]
-      );
+      await requestPasswordReset(email);
+      setStatus("success");
     } catch (err: any) {
       console.error("Forgot password error:", err);
-      Alert.alert(
-        "Error",
-        err.message || "Unable to send reset link. Please try again later."
-      );
+      setErrorMessage(err.message || "Unable to send reset link. Please try again later.");
+      setStatus("error");
     } finally {
-      setIsLoading(false);
+      // no-op
     }
   };
 
@@ -89,10 +67,15 @@ export default function ForgotPasswordScreen({ navigation }: Props) {
       >
         <View style={styles.content}>
           <Text style={styles.title}>Reset Password</Text>
-          <Text style={styles.subtitle}>
-            Enter your account email address and we'll send you a password reset
-            link.
-          </Text>
+          {status === "success" ? (
+            <Text style={styles.subtitle}>
+              If the email is registered, a reset link has been sent. Check your inbox and follow the instructions.
+            </Text>
+          ) : (
+            <Text style={styles.subtitle}>
+              Enter your account email address and we'll send you a password reset link.
+            </Text>
+          )}
 
           <View style={styles.inputContainer}>
             <Text style={styles.inputLabel}>Email Address</Text>
@@ -106,31 +89,46 @@ export default function ForgotPasswordScreen({ navigation }: Props) {
               autoCapitalize="none"
               autoComplete="email"
               textContentType="emailAddress"
-              editable={!isLoading}
+              editable={status !== "loading" && status !== "success"}
               accessibilityLabel="Email address input for password reset"
               accessibilityHint="Enter the email address associated with your account"
+              testID="forgot-email-input"
             />
           </View>
 
+          {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
+
+          {status === "success" ? (
+            <TouchableOpacity
+              style={styles.button}
+              onPress={() => navigation.navigate("Login")}
+              accessibilityLabel="Return to login"
+              accessibilityRole="button"
+              testID="forgot-success-login-button"
+            >
+              <Text style={styles.buttonText}>Return to Login</Text>
+            </TouchableOpacity>
+          ) : (
           <TouchableOpacity
-            style={[styles.button, isLoading && styles.buttonDisabled]}
+            style={[styles.button, status === "loading" && styles.buttonDisabled]}
             onPress={handleReset}
-            disabled={isLoading}
+            disabled={status === "loading"}
             accessibilityLabel="Send reset link"
             accessibilityHint="Sends a password reset link to your email address"
             accessibilityRole="button"
           >
-            {isLoading ? (
+            {status === "loading" ? (
               <ActivityIndicator color={colors.textInverse} />
             ) : (
               <Text style={styles.buttonText}>Send Reset Link</Text>
             )}
           </TouchableOpacity>
+          )}
 
           <TouchableOpacity
             style={styles.backButton}
             onPress={() => navigation.goBack()}
-            disabled={isLoading}
+            disabled={status === "loading"}
             accessibilityLabel="Go back to login"
             accessibilityRole="button"
           >
@@ -220,6 +218,12 @@ const styles = StyleSheet.create({
     textAlign: "center",
     fontSize: typography.bodySmall.fontSize,
     textDecorationLine: "underline",
+  },
+  errorText: {
+    color: colors.danger,
+    fontSize: typography.bodySmall.fontSize,
+    marginTop: spacing.sp2,
+    textAlign: "center",
   },
 });
 
