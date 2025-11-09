@@ -2,12 +2,9 @@
   "$schema": "https://railway.app/railway.schema.json",
   "services": {
     "sprint100-backend": {
-      "rootDir": "server",
+      "rootDir": ".",
       "build": {
-        "command": "npm ci && npm run build"
-      },
-      "start": {
-        "command": "node dist/server.js"
+        "dockerfilePath": "server/Dockerfile"
       },
       "env": {
         "NODE_ENV": "production",
