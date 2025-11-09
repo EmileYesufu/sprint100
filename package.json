@@ -18,10 +18,12 @@
     "start:server": "cd server && npm start",
     "db:migrate": "cd server && npx prisma migrate deploy",
     "db:generate": "cd server && npx prisma generate",
-    "db:studio": "cd server && npx prisma studio"
+    "db:studio": "cd server && npx prisma studio",
+    "test:integration": "scripts/run-integration-tests.sh"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "concurrently": "^8.2.2",
+    "dotenv-cli": "^7.4.1"
   },
   "keywords": [
     "react-native",

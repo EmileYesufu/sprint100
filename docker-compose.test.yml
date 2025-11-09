@@ -1,0 +1,18 @@
+version: "3.8"
+
+services:
+  postgres-test:
+    image: postgres:15
+    container_name: sprint100_postgres_test
+    restart: unless-stopped
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_USER: sprint100
+      POSTGRES_PASSWORD: sprint100
+      POSTGRES_DB: sprint100_test
+    volumes:
+      - pgdata_test:/var/lib/postgresql/data
+
+volumes:
+  pgdata_test:

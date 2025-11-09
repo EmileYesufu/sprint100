@@ -17,6 +17,7 @@
 
 ## Integration & Testing
 - [ ]
+- [x] Integration tests added
 - [x] Analytics MVP
 
 ## Deployment/Release
