@@ -87,10 +87,10 @@ export default function LoginScreen({ navigation }: Props) {
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
       <View style={styles.content}>
-        {/* App Icon */}
+        {/* App Branding */}
         <View style={styles.iconContainer}>
-          <Image 
-            source={require("../../../assets/icon.png")} 
+          <Image
+            source={require("../../../assets/sprint100-logo.png")}
             style={styles.appIcon}
             resizeMode="contain"
           />
@@ -187,8 +187,8 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sp6,
   },
   appIcon: {
-    width: 80,
-    height: 80,
+    width: 120,
+    height: 120,
     borderRadius: radii.lg,
   },
   title: {
