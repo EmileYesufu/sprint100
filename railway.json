@@ -1,13 +1,12 @@
 {
-  "build": {
-    "builder": "NIXPACKS",
-    "buildCommand": "cd server && npm install && npx prisma generate && npm run build"
-  },
-  "deploy": {
-    "startCommand": "cd server && npx prisma migrate deploy && npm start",
-    "healthcheckPath": "/health",
-    "healthcheckTimeout": 100,
-    "restartPolicyType": "ON_FAILURE",
-    "restartPolicyMaxRetries": 10
+  "build": "cd server && npm ci && npm run build",
+  "start": "cd server && node dist/server.js",
+  "env": {
+    "NODE_ENV": "production",
+    "DATABASE_URL": "",
+    "JWT_SECRET": "",
+    "ALLOWED_ORIGINS": "https://sprint100.app,https://testflight.apple.com",
+    "SUPERUSER_EMAIL": "",
+    "SUPERUSER_PASSWORD": ""
   }
 }

@@ -1,5 +1,5 @@
 # Sprint100 Server Production Dockerfile
-FROM node:18-alpine AS builder
+FROM node:20-alpine AS builder
 
 # Set working directory
 WORKDIR /app
@@ -9,7 +9,7 @@ COPY package*.json ./
 COPY prisma ./prisma/
 
 # Install dependencies
-RUN npm ci --only=production && npm cache clean --force
+RUN npm ci
 
 # Copy source code
 COPY . .
@@ -20,8 +20,11 @@ RUN npx prisma generate
 # Build TypeScript
 RUN npm run build
 
+# Remove dev dependencies
+RUN npm prune --omit=dev
+
 # Production stage
-FROM node:18-alpine AS production
+FROM node:20-alpine AS production
 
 # Create app user for security
 RUN addgroup -g 1001 -S nodejs
@@ -47,4 +50,4 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD node -e "require('http').get('http://localhost:4000/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"
 
 # Start production server
-CMD ["npm", "start"]
+CMD ["node", "dist/server.js"]
