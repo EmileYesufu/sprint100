@@ -1,4 +1,8 @@
 {
-  "build": "docker build -t sprint100-backend .",
-  "start": "docker run -p 4000:4000 sprint100-backend"
+  "build": {
+    "command": "docker build -t sprint100-backend ."
+  },
+  "start": {
+    "command": "docker run -p 4000:4000 sprint100-backend"
+  }
 }
