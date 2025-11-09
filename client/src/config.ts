@@ -11,14 +11,12 @@
 
 import Constants from "expo-constants";
 
-// Get the machine's IP address for development
-function getMachineIP(): string {
-  // This will be replaced with actual IP detection in production
-  // For now, use a placeholder that developers should replace
-  return "http://192.168.1.140:4000"; // ← REPLACE WITH YOUR MACHINE'S IP (run: ipconfig getifaddr en0)
-}
+let runtimeOverride: string | null = null;
+let hasWarned = false;
 
-export const DEFAULT_SERVER_URL = getMachineIP();
+export function setRuntimeServerUrl(url: string | null) {
+  runtimeOverride = url;
+}
 
 /**
  * Get server URL based on environment configuration
@@ -32,40 +30,33 @@ export const DEFAULT_SERVER_URL = getMachineIP();
  * For remote testers: Set EXPO_PUBLIC_API_URL=https://your-ngrok-url.ngrok.io in .env
  */
 export function getServerUrl(): string {
-  // 1. Check expo config extra (app.json)
+  if (runtimeOverride) {
+    return runtimeOverride;
+  }
+
   const expoApiUrl = Constants.expoConfig?.extra?.API_URL;
   if (expoApiUrl) {
-    console.log(`📡 Using API URL from app.json: ${expoApiUrl}`);
     return expoApiUrl;
   }
 
-  // 2. Check EXPO_PUBLIC_API_URL environment variable
   if (process.env.EXPO_PUBLIC_API_URL) {
-    console.log(`📡 Using API URL from .env: ${process.env.EXPO_PUBLIC_API_URL}`);
     return process.env.EXPO_PUBLIC_API_URL;
   }
 
-  // 3. Check if we're in test mode
-  if (process.env.APP_ENV === 'test') {
-    const testUrl =
-      process.env.TEST_SERVER_URL || process.env.SERVER_URL || DEFAULT_SERVER_URL;
-    console.log(`📡 Using test API URL: ${testUrl}`);
-    return testUrl;
+  if (process.env.APP_ENV === "test" && process.env.TEST_SERVER_URL) {
+    return process.env.TEST_SERVER_URL;
   }
 
-  // 4. Try SERVER_URL from .env
   if (process.env.SERVER_URL) {
-    console.log(`📡 Using API URL from SERVER_URL: ${process.env.SERVER_URL}`);
     return process.env.SERVER_URL;
   }
 
-  // 5. Fallback to default
-  console.log(`📡 Using default API URL: ${DEFAULT_SERVER_URL}`);
-  console.warn(
-    '⚠️  WARNING: Using default IP. For remote testing, set EXPO_PUBLIC_API_URL in .env'
-  );
+  if (!hasWarned) {
+    console.warn("⚠️  WARNING: No API URL configured. Set EXPO_PUBLIC_API_URL for production builds.");
+    hasWarned = true;
+  }
 
-  return DEFAULT_SERVER_URL;
+  return "http://localhost:4000";
 }
 
 // Export the resolved server URL for backward compatibility

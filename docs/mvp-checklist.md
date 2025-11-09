@@ -8,6 +8,7 @@
 - [ ]
 - [x] Forgot password complete
 - [x] Opponent visibility enhanced
+- [x] Config hardened
 
 ## Logic/Backend
 - [x] Auth refresh aligned
