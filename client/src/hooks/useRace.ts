@@ -10,6 +10,7 @@ import NetInfo, { NetInfoState } from "@react-native-community/netinfo";
 import { useSocket } from "@/hooks/useSocket";
 import { useAuth } from "@/hooks/useAuth";
 import type { MatchResult, PlayerState, LocalEndResult } from "@/types";
+import { logEvent } from "@/services/eventLogger";
 
 interface UseRaceReturn {
   // Race state
@@ -83,11 +84,15 @@ export function useRace(matchId: string, opponent: any): UseRaceReturn {
   const lastSnapshotRef = useRef<string>("");
   const reconnectAttempts = useRef(0);
   const maxReconnectAttempts = 3;
+  const hasLoggedRaceStart = useRef(false);
+  const hasLoggedRaceEnd = useRef(false);
 
   useEffect(() => {
     finishedPlayers.current.clear();
     playerStates.current.clear();
     lastSnapshotRef.current = "";
+  hasLoggedRaceStart.current = false;
+  hasLoggedRaceEnd.current = false;
     setRaceState(prev => ({
       ...prev,
       myMeters: 0,
@@ -150,6 +155,11 @@ export function useRace(matchId: string, opponent: any): UseRaceReturn {
         countdown--;
         if (countdown <= 0) {
           clearInterval(countdownInterval);
+          if (!hasLoggedRaceStart.current) {
+            logEvent("race_start", { matchId: Number(matchId) });
+            hasLoggedRaceStart.current = true;
+            hasLoggedRaceEnd.current = false;
+          }
           setRaceState(prev => ({
             ...prev,
             status: "racing",
@@ -247,9 +257,29 @@ export function useRace(matchId: string, opponent: any): UseRaceReturn {
         opponentMeters: rival?.meters ?? prev.opponentMeters,
         players: normalized,
       }));
+
+      if (!snapshot?.finished && !hasLoggedRaceStart.current) {
+        logEvent("race_start", { matchId: Number(matchId) });
+        hasLoggedRaceStart.current = true;
+        hasLoggedRaceEnd.current = false;
+      }
+      if (snapshot?.finished && !hasLoggedRaceEnd.current) {
+        logEvent("race_end", {
+          matchId: Number(matchId),
+          outcome: snapshot?.winnerId === user?.id ? "win" : snapshot?.winnerId ? "loss" : "unknown",
+        });
+        hasLoggedRaceEnd.current = true;
+      }
     };
 
     const handleRaceEnd = (data: any) => {
+      if (!hasLoggedRaceEnd.current) {
+        logEvent("race_end", {
+          matchId: Number(matchId),
+          outcome: data?.winnerId === user?.id ? "win" : data?.winnerId ? "loss" : "unknown",
+        });
+        hasLoggedRaceEnd.current = true;
+      }
       setRaceState(prev => ({
         ...prev,
         status: "finished",

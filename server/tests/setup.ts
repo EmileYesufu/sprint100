@@ -37,6 +37,16 @@ beforeEach(async () => {
   // Clean up test data in reverse order of dependencies
   // Gracefully handle missing tables (for tests that don't require database)
   try {
+    await prisma.$executeRawUnsafe('DELETE FROM "AppEvent"');
+  } catch (error: any) {
+    if (!error.message?.includes('does not exist')) throw error;
+  }
+  try {
+    await prisma.$executeRawUnsafe('DELETE FROM "PasswordResetToken"');
+  } catch (error: any) {
+    if (!error.message?.includes('does not exist')) throw error;
+  }
+  try {
     await prisma.matchPlayer.deleteMany();
   } catch (error: any) {
     // Ignore errors if table doesn't exist (for pure unit tests)

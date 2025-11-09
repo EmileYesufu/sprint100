@@ -19,6 +19,7 @@ model User {
   challengesSent Challenge[]     @relation("ChallengesSent")
   challengesReceived Challenge[] @relation("ChallengesReceived")
   resetTokens PasswordResetToken[]
+  events    AppEvent[]
   
   // Add computed fields for leaderboard
   matchesPlayed Int @default(0)
@@ -86,6 +87,19 @@ model PasswordResetToken {
   user       User     @relation(fields: [userId], references: [id])
 
   @@index([userId, consumed, expiresAt])
+}
+
+model AppEvent {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  eventName String
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt])
+  @@index([eventName, createdAt])
 }
 
 enum QueueStatus {

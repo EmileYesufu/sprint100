@@ -9,6 +9,7 @@ import * as SecureStore from "expo-secure-store";
 import { jwtDecode } from "jwt-decode";
 import { User } from "@/types";
 import { getServerUrl } from "@/config";
+import { logEvent, setEventLoggerToken } from "@/services/eventLogger";
 // Import base64 polyfill for React Native (must be imported early)
 import "@/utils/base64Polyfill";
 
@@ -44,6 +45,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     loadToken();
   }, []);
+
+  useEffect(() => {
+    setEventLoggerToken(token);
+  }, [token]);
 
   // Set up token expiration monitoring
   useEffect(() => {
@@ -180,6 +185,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         username: decoded.username || "",
         elo: 1000, // Will be updated from server
       });
+      logEvent("auth_login");
     } catch (error: any) {
       console.error("Error saving token:", error);
       console.error("Token that failed:", newToken ? `${newToken.substring(0, 50)}...` : "null/undefined");
@@ -247,6 +253,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await SecureStore.deleteItemAsync("token");
       setToken(null);
       setUser(null);
+      setEventLoggerToken(null);
     } catch (error) {
       console.error("Error during logout:", error);
     }

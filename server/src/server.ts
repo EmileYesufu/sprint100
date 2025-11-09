@@ -41,6 +41,7 @@ import {
 } from "./services/matchStore";
 import { MatchStatus, QueueStatus } from "@prisma/client";
 import { createPasswordResetRequest, PasswordResetError, resetPasswordWithToken } from "./services/passwordResetService";
+import { recordEvents, ALLOWED_EVENTS } from "./services/eventService";
 
 // Extend Express Request type to include user property
 declare global {
@@ -426,6 +427,58 @@ app.post("/api/auth/reset", authLimiter, async (req, res) => {
   }
 });
 
+app.post("/api/events", authenticateToken, async (req, res) => {
+  const userId = req.user?.userId;
+  if (!userId) {
+    return res.status(401).json({ error: { code: "unauthorized", message: "User context required" } });
+  }
+
+  const payload = Array.isArray(req.body?.events)
+    ? req.body.events
+    : req.body
+    ? [req.body]
+    : [];
+
+  if (!payload.length) {
+    return res.status(400).json({
+      error: { code: "invalid_request", message: "events payload required" },
+    });
+  }
+
+  try {
+    const normalized = payload.map((event: any) => ({
+      eventName: event?.eventName,
+      timestamp: event?.timestamp,
+      metadata:
+        event && typeof event.metadata === "object" && event.metadata !== null && !Array.isArray(event.metadata)
+          ? event.metadata
+          : null,
+    }));
+
+    await recordEvents(userId, normalized);
+
+    return res.status(202).json({ success: true, recorded: normalized.length });
+  } catch (error: any) {
+    if (error instanceof Error) {
+      if (error.message === "invalid_event_name" || error.message === "unsupported_event") {
+        return res.status(400).json({
+          error: {
+            code: error.message,
+            message: `eventName must be one of: ${Array.from(ALLOWED_EVENTS).join(", ")}`,
+          },
+        });
+      }
+      if (error.message === "invalid_timestamp") {
+        return res.status(400).json({
+          error: { code: "invalid_timestamp", message: "timestamp must be ISO8601" },
+        });
+      }
+    }
+    console.error("Error recording events:", error);
+    return res.status(500).json({ error: { code: "server_error", message: "Unable to record events" } });
+  }
+});
+
 const httpServer = http.createServer(app);
 const io = new SocketIOServer(httpServer, {
   cors: { 
@@ -460,7 +513,7 @@ async function maybeCreateMatchFromQueue() {
     return;
   }
 
-  const matchRecord = await createMatchFromQueue(candidates.map((candidate) => candidate.userId));
+  const matchRecord = await createMatchFromQueue(candidates.map((candidate: any) => candidate.userId));
   await broadcastQueueState();
   await startMatchFromRecord(matchRecord);
 }
@@ -503,7 +556,7 @@ async function startMatchFromRecord(matchRecord: any) {
   createMatchWithPlayers(playersWithSockets, matchRecord.id);
 
   await Promise.all(
-    playersWithSockets.map((player) => linkSocketToMatch(matchRecord.id, player.userId, player.socketId))
+    playersWithSockets.map((player: any) => linkSocketToMatch(matchRecord.id, player.userId, player.socketId))
   );
 }
 

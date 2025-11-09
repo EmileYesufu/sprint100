@@ -12,6 +12,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AIRunner, createAIRunners } from "@/ai/aiRunner";
 import { computeFinishThreshold, hasReachedThreshold } from "@/utils/finishThreshold";
 import { computeFinalPlacings, assignPositions, type RacerProgress } from "@/utils/computeFinalPlacings";
+import { logEvent } from "@/services/eventLogger";
 import type {
   TrainingConfig,
   TrainingRaceState,
@@ -218,6 +219,11 @@ export function useTraining(): UseTrainingReturn {
   const start = useCallback((trainingConfig: TrainingConfig) => {
     config.current = trainingConfig;
     setResult(null);
+
+    logEvent("training_start", {
+      difficulty: trainingConfig.difficulty,
+      aiCount: trainingConfig.aiCount,
+    });
 
     // Create AI runners
     aiRunners.current = createAIRunners(
@@ -455,11 +461,17 @@ export function useTraining(): UseTrainingReturn {
       completedAt: new Date().toISOString(),
     };
 
+    const playerResult = resultData.runners.find((r) => r.isPlayer);
     setResult(resultData);
+    logEvent("training_end", {
+      difficulty: config.current?.difficulty,
+      aiCount: config.current?.aiCount,
+      position: playerResult?.position ?? null,
+      finishTimeMs: playerResult?.finishTime ?? null,
+    });
     setRaceState((prev) => ({ ...prev, status: "finished", runners: sorted }));
 
     // Update records if player finished and this is their best
-    const playerResult = resultData.runners.find((r) => r.isPlayer);
     if (playerResult && playerResult.finishTime) {
       await updateRecords(config.current!, playerResult.position, playerResult.finishTime);
     }
