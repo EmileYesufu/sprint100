@@ -1,6 +1,10 @@
 {
-  "build": "cd server && npm ci && npm run build",
-  "start": "cd server && node dist/server.js",
+  "build": {
+    "command": "cd server && npm ci && npm run build"
+  },
+  "start": {
+    "command": "cd server && node dist/server.js"
+  },
   "env": {
     "NODE_ENV": "production",
     "DATABASE_URL": "",
