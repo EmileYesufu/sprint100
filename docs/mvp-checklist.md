@@ -22,3 +22,4 @@
 
 ## Deployment/Release
 - [ ]
+- [x] Deployment scripts ready

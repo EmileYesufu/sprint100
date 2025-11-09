@@ -1,3 +1,18 @@
+## Environment Variables
+
+- `DATABASE_URL`: Connection string for the Postgres instance powering matchmaking/session data.
+- `JWT_SECRET`: Rotation-ready secret for auth tokens; rotate by generating new secret and restarting server with both old/new handled via dual verification if needed.
+- `ALLOWED_ORIGINS`: Comma-separated list of front-end origins allowed by CORS.
+- Mobile builds should embed `EXPO_PUBLIC_API_URL` (Expo/EAS) for connecting to the appropriate environment. For managed distribution, update `app.json` / `app.config.ts` and re-run builds.
+
+## Rollback
+
+To roll back to a previous server image/build:
+
+1. Identify the previously published container tag (e.g., `sprint100/server:<tag>`).
+2. Update `docker-compose.prod.yml` (or orchestrator config) to pin to the prior tag.
+3. Run `docker compose -f docker-compose.prod.yml pull && docker compose -f docker-compose.prod.yml up -d --force-recreate`.
+4. If schema migrations were applied, evaluate whether a backward-compatible migration exists; otherwise restore from snapshot.
 # Persistent Matchmaking State
 
 Sprint100 now stores matchmaking queue, active challenges, and match metadata in the primary database. This change ensures that:
