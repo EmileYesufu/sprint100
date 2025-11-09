@@ -22,6 +22,14 @@ interface UseRaceReturn {
     isLocallyEnded: boolean;
     localEndResult: LocalEndResult | null;
     clientPlacings: string[];
+    players: Array<{
+      userId: number;
+      email: string;
+      meters: number;
+      steps: number;
+      position: number;
+      isPlayer: boolean;
+    }>;
   };
   
   // Network state
@@ -51,6 +59,14 @@ export function useRace(matchId: string, opponent: any): UseRaceReturn {
     isLocallyEnded: false,
     localEndResult: null as LocalEndResult | null,
     clientPlacings: [] as string[],
+    players: [] as Array<{
+      userId: number;
+      email: string;
+      meters: number;
+      steps: number;
+      position: number;
+      isPlayer: boolean;
+    }>,
   });
   
   // Network state
@@ -64,8 +80,21 @@ export function useRace(matchId: string, opponent: any): UseRaceReturn {
   const lastSide = useRef<"left" | "right" | null>(null);
   const finishedPlayers = useRef<Set<number>>(new Set());
   const playerStates = useRef<Map<number, PlayerState>>(new Map());
+  const lastSnapshotRef = useRef<string>("");
   const reconnectAttempts = useRef(0);
   const maxReconnectAttempts = 3;
+
+  useEffect(() => {
+    finishedPlayers.current.clear();
+    playerStates.current.clear();
+    lastSnapshotRef.current = "";
+    setRaceState(prev => ({
+      ...prev,
+      myMeters: 0,
+      opponentMeters: 0,
+      players: [],
+    }));
+  }, [matchId]);
   
   // Track network connectivity
   useEffect(() => {
@@ -151,11 +180,30 @@ export function useRace(matchId: string, opponent: any): UseRaceReturn {
       const me = players.find((p: any) => p.userId === user?.id);
       const rival = players.find((p: any) => p.userId !== user?.id);
 
+      const snapshot = Array.from(playerStates.current.values())
+        .map((player) => ({
+          userId: player.userId,
+          email: player.email || `Player ${player.userId}`,
+          meters: player.meters,
+          steps: player.taps ?? 0,
+          isPlayer: player.userId === user?.id,
+        }))
+        .sort((a, b) => b.meters - a.meters)
+        .map((player, index) => ({
+          ...player,
+          position: index + 1,
+        }));
+
+      const snapshotHash = JSON.stringify(snapshot.map((p) => [p.userId, p.meters, p.steps]));
+
       setRaceState(prev => ({
         ...prev,
         myMeters: me?.meters ?? prev.myMeters,
         opponentMeters: rival?.meters ?? prev.opponentMeters,
+        players: lastSnapshotRef.current === snapshotHash ? prev.players : snapshot,
       }));
+
+      lastSnapshotRef.current = snapshotHash;
 
       // Check for local early finish threshold
       checkLocalEarlyFinish(data);
@@ -175,12 +223,29 @@ export function useRace(matchId: string, opponent: any): UseRaceReturn {
       const me = players.find((p: any) => p.userId === user?.id);
       const rival = players.find((p: any) => p.userId !== user?.id);
 
+      const normalized = Array.from(playerStates.current.values())
+        .map((player) => ({
+          userId: player.userId,
+          email: player.email || `Player ${player.userId}`,
+          meters: player.meters,
+          steps: player.taps ?? 0,
+          isPlayer: player.userId === user?.id,
+        }))
+        .sort((a, b) => b.meters - a.meters)
+        .map((player, index) => ({
+          ...player,
+          position: index + 1,
+        }));
+
+      lastSnapshotRef.current = JSON.stringify(normalized.map((p) => [p.userId, p.meters, p.steps]));
+
       setRaceState(prev => ({
         ...prev,
         status: snapshot?.finished ? "finished" : "racing",
         countdown: null,
         myMeters: me?.meters ?? prev.myMeters,
         opponentMeters: rival?.meters ?? prev.opponentMeters,
+        players: normalized,
       }));
     };
 

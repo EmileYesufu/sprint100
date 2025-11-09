@@ -17,6 +17,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useRace } from "@/hooks/useRace";
 import { NetworkDisconnectModal } from "@/components/NetworkDisconnectModal";
 import { metersToPct } from "@/utils/formatting";
+import { OpponentPanel } from "@/screens/Race/components/OpponentPanel";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { RaceStackParamList } from "@/navigation/AppNavigator";
 
@@ -153,6 +154,7 @@ export default function RaceScreenWithNetworkHandling({ route, navigation }: Pro
         </View>
         {/* Race Content */}
         <View style={styles.raceContent}>
+          <OpponentPanel players={raceState.players} currentUserId={user?.id} style={styles.opponentPanelWrapper} />
           {renderCountdown()}
           {renderRaceProgress()}
           {renderOpponentProgress()}
@@ -215,6 +217,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     padding: 20,
+  },
+  opponentPanelWrapper: {
+    marginBottom: 16,
   },
   countdownOverlay: {
     position: "absolute",

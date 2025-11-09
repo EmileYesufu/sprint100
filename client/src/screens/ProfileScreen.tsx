@@ -23,6 +23,7 @@ import { getPositionSuffix, getMedalForPosition, getAvatarInitials, getColorFrom
 import type { MatchHistoryEntry } from "@/types";
 import { colors, typography, spacing, shadows, radii, accessibility } from "@/theme";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
+import { getProfileEmptyState } from "@/screens/profileHelpers";
 
 export default function ProfileScreen() {
   const { user, token, logout } = useAuth();
@@ -175,22 +176,27 @@ export default function ProfileScreen() {
         
         {isLoading ? (
           <ActivityIndicator size="large" color={colors.accent} style={styles.loader} />
-        ) : error ? (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyTitle}>Unable to load match history</Text>
-            <Text style={styles.emptySubtitle}>{error}</Text>
-            <TouchableOpacity
-              style={styles.retryButton}
-              onPress={loadMatchHistory}
-              accessibilityRole="button"
-            >
-              <Text style={styles.retryButtonText}>Try Again</Text>
-            </TouchableOpacity>
-          </View>
         ) : matchHistory.length === 0 ? (
-          <Text style={styles.emptyText} allowFontScaling={accessibility.allowFontScaling}>
-            No matches played yet
-          </Text>
+          <View style={styles.emptyState}>
+            {(() => {
+              const state = getProfileEmptyState(error);
+              return (
+                <>
+                  <Text style={styles.emptyTitle}>{state.title}</Text>
+                  {state.message ? <Text style={styles.emptySubtitle}>{state.message}</Text> : null}
+                  {state.showRetry ? (
+                    <TouchableOpacity
+                      style={styles.retryButton}
+                      onPress={loadMatchHistory}
+                      accessibilityRole="button"
+                    >
+                      <Text style={styles.retryButtonText}>Try Again</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                </>
+              );
+            })()}
+          </View>
         ) : (
           <FlatList
             data={matchHistory}

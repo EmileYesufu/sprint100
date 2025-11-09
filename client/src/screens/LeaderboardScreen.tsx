@@ -24,6 +24,7 @@ import { getAvatarInitials, getColorFromString } from "@/utils/uiHelpers";
 import type { LeaderboardEntry } from "@/types";
 import { colors, typography, spacing, shadows, radii, accessibility } from "@/theme";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
+import { getLeaderboardEmptyState } from "@/screens/leaderboardHelpers";
 
 export default function LeaderboardScreen() {
   const { token, user } = useAuth();
@@ -185,6 +186,7 @@ export default function LeaderboardScreen() {
               onRefresh={handleRefresh}
               tintColor={colors.accent}
             />
+          }
           onEndReached={handleLoadMore}
           onEndReachedThreshold={0.5}
           ListFooterComponent={
@@ -196,17 +198,23 @@ export default function LeaderboardScreen() {
           }
           ListEmptyComponent={
             <View style={styles.emptyState}>
-              {error ? (
-                <>
-                  <Text style={styles.emptyTitle}>Unable to load leaderboard</Text>
-                  <Text style={styles.emptySubtitle}>{error}</Text>
-                  <TouchableOpacity style={styles.retryButton} onPress={() => loadLeaderboard({ refresh: true })}>
-                    <Text style={styles.retryButtonText}>Try Again</Text>
-                  </TouchableOpacity>
-                </>
-              ) : (
-                <Text style={styles.emptyText}>No players on leaderboard yet.</Text>
-              )}
+              {(() => {
+                const state = getLeaderboardEmptyState(error);
+                return (
+                  <>
+                    <Text style={styles.emptyTitle}>{state.title}</Text>
+                    {state.message ? <Text style={styles.emptySubtitle}>{state.message}</Text> : null}
+                    {state.showRetry ? (
+                      <TouchableOpacity
+                        style={styles.retryButton}
+                        onPress={() => loadLeaderboard({ refresh: true })}
+                      >
+                        <Text style={styles.retryButtonText}>Try Again</Text>
+                      </TouchableOpacity>
+                    ) : null}
+                  </>
+                );
+              })()}
             </View>
           }
           renderItem={({ item }) => {

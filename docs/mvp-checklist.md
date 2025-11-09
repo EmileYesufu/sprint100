@@ -6,6 +6,7 @@
 ## UI/UX
 - [ ]
 - [x] Forgot password complete
+- [x] Opponent visibility enhanced
 
 ## Logic/Backend
 - [x] Auth refresh aligned
