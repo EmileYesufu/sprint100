@@ -1,6 +1,6 @@
 import express from "express";
 import http from "http";
-import { Server as SocketIOServer } from "socket.io";
+import { Server as SocketIOServer, type Socket } from "socket.io";
 import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
@@ -21,6 +21,12 @@ import {
   deleteRace,
   computeFinishThreshold,
 } from "./services/raceService";
+import {
+  buildRaceSnapshot,
+  handleRaceRejoin,
+  handleRaceTap,
+  type RaceSocketContext,
+} from "./socket/raceHandlers";
 
 // Extend Express Request type to include user property
 declare global {
@@ -589,55 +595,24 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("tap", (payload: { matchId: number; side: "left" | "right"; ts: number }) => {
-    // Try race service first (multiplayer)
-    const raceResult = updatePlayerProgress(payload.matchId, socket.id, payload.side);
-    
-    if (raceResult) {
-      // Using race service (multiplayer)
-      const { race, shouldEnd, finishedPlayers } = raceResult;
-      
-      // Broadcast progress update to all players in the room
-      const progress = getRaceProgress(payload.matchId);
-      if (progress) {
-        io.to(race.roomName).emit("race_update", {
-          matchId: payload.matchId,
-          players: progress.players,
-        });
-      }
+  const raceContext: RaceSocketContext = {
+    io,
+    matches,
+    userSockets,
+    jwtSecret: JWT_SECRET,
+    endMatch: (raceOrMatch: any, finishedPlayers: any[]) => endMatch(raceOrMatch, finishedPlayers),
+  };
 
-      // Check if race should end based on threshold
-      if (shouldEnd) {
-        const finishedRace = finishRace(payload.matchId);
-        if (finishedRace) {
-          endMatch(finishedRace, finishedPlayers);
-        }
-      }
-      return;
-    }
-    const m = matches.get(payload.matchId);
-    if (!m) return;
-    const player = m.players.find((p: any) => p.socketId === socket.id);
-    if (!player) return;
-    // simple validation: alternate sides
-    if (player.lastSide === payload.side) {
-      // ignore repeated same-side taps (simple rule)
-      return;
-    }
-    player.lastSide = payload.side;
-    player.steps++;
-    // compute progress -- assume step = 0.6m
-    player.meters = player.steps * 0.6;
-    // notify both
-    const state = {
-      players: m.players.map((p: any) => ({ userId: p.userId, meters: p.meters, steps: p.steps })),
-    };
-    m.players.forEach((p: any) => io.to(p.socketId).emit("race_update", state));
-    // check finish
-    const finished = m.players.filter((p: any) => p.meters >= 100);
-    if (finished.length > 0) {
-      endMatch(m, finished);
-    }
+  socket.on("tap", (payload: { matchId: number; side: "left" | "right"; ts: number }) => {
+    handleRaceTap(raceContext, socket as Socket, payload);
+  });
+
+  socket.on("race_tap", (payload: { matchId: number; side: "left" | "right"; ts?: number }) => {
+    handleRaceTap(raceContext, socket as Socket, payload);
+  });
+
+  socket.on("rejoin_race", (payload: { matchId: number; token: string }) => {
+    handleRaceRejoin(raceContext, socket as Socket, payload);
   });
 
   socket.on("disconnect", () => {
@@ -905,19 +880,24 @@ async function endMatch(matchOrRace: any, finishedPlayers: any[]) {
     }));
 
     // Notify all players in the race room
-    io.to(raceState.roomName).emit("race_complete", {
+    const completionPayload = {
       matchId: matchOrRace.id,
       result: raceResults,
       eloDeltas: eloDeltas.map(e => ({ userId: e.userId, delta: e.delta })),
       threshold: computeFinishThreshold(raceState.players.length),
-    });
+    };
+
+    io.to(raceState.roomName).emit("race_complete", completionPayload);
+    io.to(raceState.roomName).emit("race_end", completionPayload);
 
     // Legacy match_end event for backward compatibility
-    io.to(raceState.roomName).emit("match_end", {
+    const legacyPayload = {
       matchId: matchOrRace.id,
       result: raceResults,
       eloDeltas: eloDeltas.map(e => ({ userId: e.userId, delta: e.delta })),
-    });
+    };
+
+    io.to(raceState.roomName).emit("match_end", legacyPayload);
 
     // Cleanup
     deleteRace(matchOrRace.id);

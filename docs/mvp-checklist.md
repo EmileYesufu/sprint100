@@ -8,6 +8,7 @@
 
 ## Logic/Backend
 - [x] Auth refresh aligned
+- [x] Socket parity
 
 ## Integration & Testing
 - [ ]

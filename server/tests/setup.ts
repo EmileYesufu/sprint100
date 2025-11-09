@@ -8,9 +8,13 @@ process.env.RATE_LIMIT_MAX = '5000';
 process.env.RATE_LIMIT_WINDOW_MS = '900000'; // 15 minutes
 process.env.ENABLE_REQUEST_LOGGING = 'false';
 
+const shouldSkipDbCleanup =
+  process.env.SKIP_DB_CLEANUP === 'true' ||
+  (process.env.DATABASE_URL?.startsWith('file:') ?? false);
+
 import { PrismaClient } from '@prisma/client';
 
-const prisma = new PrismaClient();
+const prisma = shouldSkipDbCleanup ? null : new PrismaClient();
 
 // Global test setup
 beforeAll(async () => {
@@ -19,11 +23,17 @@ beforeAll(async () => {
 
 // Global test teardown
 afterAll(async () => {
-  await prisma.$disconnect();
+  if (!shouldSkipDbCleanup && prisma) {
+    await prisma.$disconnect();
+  }
 });
 
 // Clean up database between tests
 beforeEach(async () => {
+  if (shouldSkipDbCleanup || !prisma) {
+    return;
+  }
+
   // Clean up test data in reverse order of dependencies
   // Gracefully handle missing tables (for tests that don't require database)
   try {

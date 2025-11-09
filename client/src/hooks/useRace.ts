@@ -9,7 +9,7 @@ import { AppState, AppStateStatus } from "react-native";
 import NetInfo, { NetInfoState } from "@react-native-community/netinfo";
 import { useSocket } from "@/hooks/useSocket";
 import { useAuth } from "@/hooks/useAuth";
-import type { RaceUpdate, MatchResult, PlayerState, LocalEndResult } from "@/types";
+import type { MatchResult, PlayerState, LocalEndResult } from "@/types";
 
 interface UseRaceReturn {
   // Race state
@@ -39,7 +39,7 @@ interface UseRaceReturn {
 
 export function useRace(matchId: string, opponent: any): UseRaceReturn {
   const { socket, isConnected } = useSocket();
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   
   // Race state
   const [raceState, setRaceState] = useState({
@@ -135,31 +135,60 @@ export function useRace(matchId: string, opponent: any): UseRaceReturn {
       }, 1000);
     };
     
-    const handleRaceUpdate = (data: RaceUpdate) => {
+    const handleRaceUpdate = (data: any) => {
       if (raceState.status !== "racing") return;
-      
+
+      const players = Array.isArray(data?.players) ? data.players : [];
+      players.forEach((player: any) => {
+        playerStates.current.set(player.userId, {
+          userId: player.userId,
+          email: player.email ?? "",
+          meters: player.meters ?? 0,
+          taps: player.steps ?? 0,
+        });
+      });
+
+      const me = players.find((p: any) => p.userId === user?.id);
+      const rival = players.find((p: any) => p.userId !== user?.id);
+
       setRaceState(prev => ({
         ...prev,
-        myMeters: data.myMeters,
-        opponentMeters: data.opponentMeters,
+        myMeters: me?.meters ?? prev.myMeters,
+        opponentMeters: rival?.meters ?? prev.opponentMeters,
       }));
-      
-      // Update player states
-      if (data.playerStates) {
-        data.playerStates.forEach(player => {
-          playerStates.current.set(player.userId, player);
-        });
-      }
-      
+
       // Check for local early finish threshold
       checkLocalEarlyFinish(data);
     };
     
-    const handleRaceEnd = (data: MatchResult) => {
+    const handleRaceSnapshot = (snapshot: any) => {
+      const players = Array.isArray(snapshot?.players) ? snapshot.players : [];
+      players.forEach((player: any) => {
+        playerStates.current.set(player.userId, {
+          userId: player.userId,
+          email: player.email ?? "",
+          meters: player.meters ?? 0,
+          taps: player.steps ?? 0,
+        });
+      });
+
+      const me = players.find((p: any) => p.userId === user?.id);
+      const rival = players.find((p: any) => p.userId !== user?.id);
+
+      setRaceState(prev => ({
+        ...prev,
+        status: snapshot?.finished ? "finished" : "racing",
+        countdown: null,
+        myMeters: me?.meters ?? prev.myMeters,
+        opponentMeters: rival?.meters ?? prev.opponentMeters,
+      }));
+    };
+
+    const handleRaceEnd = (data: any) => {
       setRaceState(prev => ({
         ...prev,
         status: "finished",
-        result: data,
+        result: (data as MatchResult) ?? prev.result,
       }));
     };
     
@@ -184,6 +213,7 @@ export function useRace(matchId: string, opponent: any): UseRaceReturn {
     // Register event listeners
     socket.on("race_start", handleRaceStart);
     socket.on("race_update", handleRaceUpdate);
+    socket.on("race_snapshot", handleRaceSnapshot);
     socket.on("race_end", handleRaceEnd);
     socket.on("disconnect", handleDisconnect);
     socket.on("connect", handleReconnect);
@@ -191,11 +221,12 @@ export function useRace(matchId: string, opponent: any): UseRaceReturn {
     return () => {
       socket.off("race_start", handleRaceStart);
       socket.off("race_update", handleRaceUpdate);
+      socket.off("race_snapshot", handleRaceSnapshot);
       socket.off("race_end", handleRaceEnd);
       socket.off("disconnect", handleDisconnect);
       socket.off("connect", handleReconnect);
     };
-  }, [socket, raceState.status]);
+  }, [socket, raceState.status, user?.id]);
   
   // Handle reconnection logic
   const handleReconnect = useCallback(() => {
@@ -229,7 +260,7 @@ export function useRace(matchId: string, opponent: any): UseRaceReturn {
   }, [socket, token, matchId]);
   
   // Check for local early finish threshold
-  const checkLocalEarlyFinish = useCallback((data: RaceUpdate) => {
+  const checkLocalEarlyFinish = useCallback((data: any) => {
     // Implementation for early finish logic
     // This would check if enough players have finished locally
     // and show local end result while waiting for server confirmation
