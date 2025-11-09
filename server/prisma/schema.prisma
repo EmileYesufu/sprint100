@@ -15,6 +15,9 @@ model User {
   elo       Int      @default(1200)
   createdAt DateTime @default(now())
   players   MatchPlayer[]
+  queueEntries MatchQueue[]
+  challengesSent Challenge[]     @relation("ChallengesSent")
+  challengesReceived Challenge[] @relation("ChallengesReceived")
   
   // Add computed fields for leaderboard
   matchesPlayed Int @default(0)
@@ -24,8 +27,12 @@ model User {
 model Match {
   id        Int           @id @default(autoincrement())
   createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  status    MatchStatus   @default(QUEUED)
   duration  Int?
   players   MatchPlayer[]
+  queueEntries MatchQueue[]
+  challenges Challenge[]
 }
 
 model MatchPlayer {
@@ -37,4 +44,52 @@ model MatchPlayer {
   finishPosition Int?
   timeMs        Int?
   deltaElo      Int?
+  socketId      String?
+
+  @@unique([matchId, userId], name: "matchId_userId")
+}
+
+model MatchQueue {
+  id        Int          @id @default(autoincrement())
+  userId    Int          @unique
+  status    QueueStatus  @default(PENDING)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  matchId   Int?
+  user      User         @relation(fields: [userId], references: [id])
+  match     Match?       @relation(fields: [matchId], references: [id])
+}
+
+model Challenge {
+  id           Int              @id @default(autoincrement())
+  challengerId Int
+  opponentId   Int
+  status       ChallengeStatus  @default(PENDING)
+  matchId      Int?
+  createdAt    DateTime         @default(now())
+  challenger   User             @relation("ChallengesSent", fields: [challengerId], references: [id])
+  opponent     User             @relation("ChallengesReceived", fields: [opponentId], references: [id])
+  match        Match?           @relation(fields: [matchId], references: [id])
+
+  @@unique([challengerId, opponentId, status], name: "unique_active_challenge")
+}
+
+enum QueueStatus {
+  PENDING
+  MATCHED
+  CANCELLED
+}
+
+enum ChallengeStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  EXPIRED
+}
+
+enum MatchStatus {
+  QUEUED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
 }

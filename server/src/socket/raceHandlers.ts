@@ -26,6 +26,7 @@ export interface RaceSocketContext {
   userSockets: Map<number, string>;
   jwtSecret: string;
   endMatch: (raceOrMatch: any, finishedPlayers: any[]) => Promise<void> | void;
+  linkSocketToMatch: (matchId: number, userId: number, socketId: string) => Promise<void> | void;
 }
 
 interface RaceSnapshotPlayer {
@@ -149,11 +150,11 @@ export function handleRaceTap(
   }
 }
 
-export function handleRaceRejoin(
+export async function handleRaceRejoin(
   context: RaceSocketContext,
   socket: Socket,
   payload: RejoinPayload
-): void {
+): Promise<void> {
   const { matchId, token } = payload;
   if (!matchId || !token) {
     socket.emit("race_error", { error: "invalid_rejoin_payload" });
@@ -185,6 +186,7 @@ export function handleRaceRejoin(
     racePlayer.socketId = socket.id;
     context.userSockets.set(userId, socket.id);
     socket.join(race.roomName);
+    await context.linkSocketToMatch(matchId, userId, socket.id);
 
     const snapshot = buildRaceSnapshot(race, userId);
     socket.emit("race_snapshot", snapshot);
@@ -210,6 +212,7 @@ export function handleRaceRejoin(
 
   legacyPlayer.socketId = socket.id;
   context.userSockets.set(userId, socket.id);
+  await context.linkSocketToMatch(matchId, userId, socket.id);
 
   const players = legacyMatch.players.map((p: any) => ({
     userId: p.userId,

@@ -50,6 +50,7 @@ describe("socket race handlers", () => {
   let matches: Map<number, any>;
   let userSockets: Map<number, string>;
   const endMatchMock = jest.fn();
+  const linkSocketMock = jest.fn();
 
   beforeEach(() => {
     ioMock = createMockIo();
@@ -61,9 +62,11 @@ describe("socket race handlers", () => {
       userSockets,
       jwtSecret: TEST_JWT_SECRET,
       endMatch: endMatchMock as unknown as RaceSocketContext["endMatch"],
+      linkSocketToMatch: linkSocketMock as unknown as RaceSocketContext["linkSocketToMatch"],
     };
     jest.clearAllMocks();
     endMatchMock.mockReset();
+    linkSocketMock.mockReset();
   });
 
   afterEach(() => {
@@ -98,7 +101,7 @@ describe("socket race handlers", () => {
     deleteRace(matchId);
   });
 
-  it("reassigns socket on rejoin and emits race snapshot", () => {
+  it("reassigns socket on rejoin and emits race snapshot", async () => {
     const matchId = 777;
     const players = [
       { socketId: "socket-old", userId: 1, email: "rejoin@test.com", username: "rejoiner", elo: 1300 },
@@ -116,7 +119,7 @@ describe("socket race handlers", () => {
       { expiresIn: "1h" }
     );
 
-    handleRaceRejoin(context, newSocket, { matchId, token });
+    await handleRaceRejoin(context, newSocket, { matchId, token });
 
     expect(newSocket.join).toHaveBeenCalledWith(race.roomName);
     expect(userSockets.get(1)).toBe("socket-new");

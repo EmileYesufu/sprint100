@@ -7,7 +7,7 @@ import rateLimit from "express-rate-limit";
 import morgan from "morgan";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { PrismaClient } from "@prisma/client";
+import prisma from "./prismaClient";
 import { calculateEloChange } from "./utils/elo";
 import { calculateMultiplayerElo } from "./utils/multiplayerElo";
 import {
@@ -27,6 +27,19 @@ import {
   handleRaceTap,
   type RaceSocketContext,
 } from "./socket/raceHandlers";
+import {
+  enqueueUser,
+  dequeueUser,
+  getNextMatchCandidates,
+  createMatchFromQueue,
+  createChallenge,
+  acceptChallenge,
+  declineChallenge,
+  linkSocketToMatch,
+  persistResult,
+  type PersistedResultPlayer,
+} from "./services/matchStore";
+import { MatchStatus, QueueStatus } from "@prisma/client";
 
 // Extend Express Request type to include user property
 declare global {
@@ -47,7 +60,6 @@ import {
   ENABLE_REQUEST_LOGGING
 } from "./config";
 
-const prisma = new PrismaClient();
 const app = express();
 
 // Security headers (helmet)
@@ -409,12 +421,78 @@ const io = new SocketIOServer(httpServer, {
   },
 });
 
-// Simple in-memory queue, matches, and challenges store (dev only)
-const queue: Array<{ socketId: string; userId: number; email: string; username: string; elo: number }> = [];
 const matches = new Map<number, any>();
-const challenges = new Map<string, any>(); // key: challengerId-targetId
 const userSockets = new Map<number, string>(); // userId -> socketId mapping
 let matchIdCounter = 1;
+
+async function broadcastQueueState() {
+  const entries = await prisma.matchQueue.findMany({
+    where: { status: QueueStatus.PENDING },
+    orderBy: { createdAt: "asc" },
+    include: { user: true },
+  });
+
+  const payload = entries.map((entry) => ({
+    userId: entry.userId,
+    email: entry.user.email,
+    elo: entry.user.elo,
+  }));
+
+  io.emit("queue_update", payload);
+}
+
+async function maybeCreateMatchFromQueue() {
+  const candidates = await getNextMatchCandidates(2);
+  if (candidates.length < 2) {
+    return;
+  }
+
+  const matchRecord = await createMatchFromQueue(candidates.map((candidate) => candidate.userId));
+  await broadcastQueueState();
+  await startMatchFromRecord(matchRecord);
+}
+
+async function startMatchFromRecord(matchRecord: any) {
+  const playersWithSockets = matchRecord.players
+    .map((player: any) => {
+      const socketId = userSockets.get(player.userId);
+      if (!socketId) {
+        return null;
+      }
+
+      return {
+        socketId,
+        userId: player.userId,
+        email: player.user?.email ?? `player${player.userId}@example.com`,
+        username: player.user?.username ?? `Player ${player.userId}`,
+        elo: player.user?.elo ?? 1200,
+      };
+    })
+    .filter((p: any): p is { socketId: string; userId: number; email: string; username: string; elo: number } => Boolean(p));
+
+  if (playersWithSockets.length !== matchRecord.players.length) {
+    console.warn(`Not all players are connected for match ${matchRecord.id}, cancelling.`);
+    await prisma.match.update({
+      where: { id: matchRecord.id },
+      data: { status: MatchStatus.CANCELLED },
+    });
+
+    const missing = matchRecord.players
+      .filter((player: any) => !userSockets.get(player.userId))
+      .map((player: any) => player.userId);
+
+    await Promise.all(missing.map((userId: number) => enqueueUser(userId)));
+    await broadcastQueueState();
+    return;
+  }
+
+  matchIdCounter = Math.max(matchIdCounter, matchRecord.id + 1);
+  createMatchWithPlayers(playersWithSockets, matchRecord.id);
+
+  await Promise.all(
+    playersWithSockets.map((player) => linkSocketToMatch(matchRecord.id, player.userId, player.socketId))
+  );
+}
 
 io.use(async (socket, next) => {
   // token via socket.handshake.auth.token
@@ -438,17 +516,27 @@ io.on("connection", (socket) => {
   // Register user socket for challenge routing
   userSockets.set(user.id, socket.id);
 
-  socket.on("join_queue", () => {
-    if (queue.find((q) => q.socketId === socket.id)) return;
-    queue.push({ socketId: socket.id, userId: user.id, email: user.email, username: user.username, elo: user.elo });
-    socket.emit("queue_joined");
-    tryPair();
+  socket.on("join_queue", async () => {
+    try {
+      await enqueueUser(user.id);
+      socket.emit("queue_joined");
+      await broadcastQueueState();
+      await maybeCreateMatchFromQueue();
+    } catch (error) {
+      console.error("Failed to join queue", error);
+      socket.emit("queue_error", { error: "failed_to_join_queue" });
+    }
   });
 
-  socket.on("leave_queue", () => {
-    const idx = queue.findIndex((q) => q.socketId === socket.id);
-    if (idx >= 0) queue.splice(idx, 1);
-    socket.emit("queue_left");
+  socket.on("leave_queue", async () => {
+    try {
+      await dequeueUser(user.id);
+      socket.emit("queue_left");
+      await broadcastQueueState();
+    } catch (error) {
+      console.error("Failed to leave queue", error);
+      socket.emit("queue_error", { error: "failed_to_leave_queue" });
+    }
   });
 
   // Challenge system - send challenge to another user by username
@@ -459,92 +547,59 @@ io.on("connection", (socket) => {
         socket.emit("challenge_error", { error: "User not found" });
         return;
       }
-      
+
       if (targetUser.id === user.id) {
         socket.emit("challenge_error", { error: "Cannot challenge yourself" });
         return;
       }
-      
+
+      await createChallenge(user.id, targetUser.id);
+
       const targetSocketId = userSockets.get(targetUser.id);
-      if (!targetSocketId) {
-        socket.emit("challenge_error", { error: "User is offline" });
-        return;
+      if (targetSocketId) {
+        io.to(targetSocketId).emit("challenge_received", {
+          from: user.username,
+          fromId: user.id,
+          fromElo: user.elo,
+        });
       }
-      
-      const challengeKey = `${user.id}-${targetUser.id}`;
-      if (challenges.has(challengeKey)) {
-        socket.emit("challenge_error", { error: "Challenge already sent" });
-        return;
-      }
-      
-      // Store challenge
-      const challenge = {
-        challengerId: user.id,
-        challengerUsername: user.username,
-        challengerElo: user.elo,
-        targetId: targetUser.id,
-        targetUsername: targetUser.username,
-        createdAt: Date.now(),
-      };
-      challenges.set(challengeKey, challenge);
-      
-      // Notify target
-      io.to(targetSocketId).emit("challenge_received", {
-        from: user.username,
-        fromId: user.id,
-        fromElo: user.elo,
-      });
-      
+
       socket.emit("challenge_sent", { to: targetUser.username });
     } catch (error) {
+      console.error("Failed to create challenge", error);
       socket.emit("challenge_error", { error: "Failed to send challenge" });
     }
   });
 
   // Accept challenge
   socket.on("accept_challenge", async (payload: { fromId: number }) => {
-    const challengeKey = `${payload.fromId}-${user.id}`;
-    const challenge = challenges.get(challengeKey);
-    
-    if (!challenge) {
-      socket.emit("challenge_error", { error: "Challenge not found or expired" });
-      return;
+    try {
+      const result = await acceptChallenge(payload.fromId, user.id);
+      if (!result) {
+        socket.emit("challenge_error", { error: "Challenge not found or already handled" });
+        return;
+      }
+
+      const matchRecord = result.match;
+      await startMatchFromRecord(matchRecord);
+    } catch (error) {
+      console.error("Failed to accept challenge", error);
+      socket.emit("challenge_error", { error: "Failed to accept challenge" });
     }
-    
-    const challengerSocketId = userSockets.get(payload.fromId);
-    if (!challengerSocketId) {
-      socket.emit("challenge_error", { error: "Challenger is offline" });
-      challenges.delete(challengeKey);
-      return;
-    }
-    
-    // Create match using race service
-    const challenger = await prisma.user.findUnique({ where: { id: payload.fromId } });
-    if (!challenger) return;
-    
-    const matchPlayers = [
-      { socketId: challengerSocketId, userId: challenger.id, email: challenger.email, username: challenger.username, elo: challenger.elo },
-      { socketId: socket.id, userId: user.id, email: user.email, username: user.username, elo: user.elo },
-    ];
-    
-    createMatchWithPlayers(matchPlayers);
-    
-    // Remove challenge
-    challenges.delete(challengeKey);
   });
 
   // Decline challenge
-  socket.on("decline_challenge", (payload: { fromId: number }) => {
-    const challengeKey = `${payload.fromId}-${user.id}`;
-    const challenge = challenges.get(challengeKey);
-    
-    if (challenge) {
-      challenges.delete(challengeKey);
-      
+  socket.on("decline_challenge", async (payload: { fromId: number }) => {
+    try {
+      await declineChallenge(payload.fromId, user.id);
+
       const challengerSocketId = userSockets.get(payload.fromId);
       if (challengerSocketId) {
         io.to(challengerSocketId).emit("challenge_declined", { by: user.username });
       }
+    } catch (error) {
+      console.error("Failed to decline challenge", error);
+      socket.emit("challenge_error", { error: "Failed to decline challenge" });
     }
   });
 
@@ -564,6 +619,7 @@ io.on("connection", (socket) => {
 
     // Join the race room
     socket.join(race.roomName);
+    linkSocketToMatch(payload.matchId, user.id, socket.id);
     
     // If countdown hasn't started, start it
     if (!race.countdownStart) {
@@ -601,6 +657,8 @@ io.on("connection", (socket) => {
     userSockets,
     jwtSecret: JWT_SECRET,
     endMatch: (raceOrMatch: any, finishedPlayers: any[]) => endMatch(raceOrMatch, finishedPlayers),
+    linkSocketToMatch: (matchId: number, userId: number, socketId: string) =>
+      linkSocketToMatch(matchId, userId, socketId),
   };
 
   socket.on("tap", (payload: { matchId: number; side: "left" | "right"; ts: number }) => {
@@ -615,22 +673,16 @@ io.on("connection", (socket) => {
     handleRaceRejoin(raceContext, socket as Socket, payload);
   });
 
-  socket.on("disconnect", () => {
-    // remove from queue
-    const idx = queue.findIndex((q) => q.socketId === socket.id);
-    if (idx >= 0) queue.splice(idx, 1);
-    
+  socket.on("disconnect", async () => {
+    try {
+      await dequeueUser(user.id);
+      await broadcastQueueState();
+    } catch (error) {
+      console.error("Failed to dequeue on disconnect", error);
+    }
+
     // Remove from userSockets mapping
     userSockets.delete(user.id);
-    
-    // Clean up any challenges from/to this user
-    const challengesToDelete: string[] = [];
-    challenges.forEach((challenge, key) => {
-      if (challenge.challengerId === user.id || challenge.targetId === user.id) {
-        challengesToDelete.push(key);
-      }
-    });
-    challengesToDelete.forEach(key => challenges.delete(key));
     
     // Handle disconnect during match
     const activeMatch = findMatchBySocketId(socket.id);
@@ -742,20 +794,26 @@ async function handleMatchDisconnection(match: any, disconnectedSocketId: string
 /**
  * Create a match with specified number of players (2-8)
  */
-function createMatchWithPlayers(players: Array<{ socketId: string; userId: number; email: string; username: string; elo: number }>): void {
+function createMatchWithPlayers(
+  players: Array<{ socketId: string; userId: number; email: string; username: string; elo: number }>,
+  existingMatchId?: number
+): void {
   if (players.length < 2 || players.length > 8) {
     console.error(`Invalid player count: ${players.length}. Must be between 2 and 8.`);
     return;
   }
 
-  const id = matchIdCounter++;
+  const matchId = existingMatchId ?? matchIdCounter++;
+  if (existingMatchId) {
+    matchIdCounter = Math.max(matchIdCounter, existingMatchId + 1);
+  }
   
   // Create race using race service
-  const race = createRace(id, players);
+  const race = createRace(matchId, players);
   
   // Store in matches map for backward compatibility
-  matches.set(id, {
-    id,
+  matches.set(matchId, {
+    id: matchId,
     players: race.players.map(p => ({
       socketId: p.socketId,
       userId: p.userId,
@@ -777,7 +835,7 @@ function createMatchWithPlayers(players: Array<{ socketId: string; userId: numbe
       .map(x => x.username || x.email || "Unknown");
     
     io.to(p.socketId).emit("match_start", { 
-      matchId: id, 
+      matchId, 
       opponent: opponents.length === 1 ? opponents[0] : opponents.join(", "),
       playerCount: players.length,
       roomName: race.roomName,
@@ -785,78 +843,77 @@ function createMatchWithPlayers(players: Array<{ socketId: string; userId: numbe
   });
 }
 
-/**
- * Try to pair players from queue (2-player default)
- */
-function tryPair() {
-  if (queue.length >= 2) {
-    const [a, b] = queue.splice(0, 2);
-    createMatchWithPlayers([a, b]);
-  }
-}
-
-/**
- * Try to create multi-player race (4 or 8 players)
- */
-function tryMultiplayerRace(playerCount: 4 | 8) {
-  if (queue.length >= playerCount) {
-    const players = queue.splice(0, playerCount);
-    createMatchWithPlayers(players);
-  }
-}
-
 async function endMatch(matchOrRace: any, finishedPlayers: any[]) {
-  // Get race state from race service (if using race service)
   const raceState = getRace(matchOrRace.id);
   
   if (raceState) {
-    // Using race service (multiplayer)
     const duration = Date.now() - raceState.startedAt;
     
-    // Store match in database
-    const dbMatch = await prisma.match.create({ 
-      data: { 
-        duration 
-      } 
-    });
-
-    // Prepare players with finish positions for ELO calculation
     const playerResults = raceState.players.map(p => ({
       userId: p.userId,
       finishPosition: p.finishPosition || raceState.players.length,
       elo: p.elo,
     }));
 
-    // Calculate ELO changes (supports 2-8 players)
     const eloDeltas = calculateMultiplayerElo(playerResults);
 
-    // Create MatchPlayer records and update ELO
+    const persistedPlayers: PersistedResultPlayer[] = raceState.players.map((player) => {
+      const eloDelta = eloDeltas.find(e => e.userId === player.userId);
+      return {
+        userId: player.userId,
+        finishPosition: player.finishPosition ?? null,
+        timeMs: player.timeMs ?? null,
+        deltaElo: eloDelta?.delta ?? null,
+      };
+    });
+
+    try {
+      await persistResult(matchOrRace.id, persistedPlayers, MatchStatus.COMPLETED);
+      await prisma.match.update({
+        where: { id: matchOrRace.id },
+        data: { duration },
+      });
+    } catch (error) {
+      console.warn(`Persist result fallback for match ${matchOrRace.id}:`, error);
+      const fallbackMatch = await prisma.match.upsert({
+        where: { id: matchOrRace.id },
+        update: { duration, status: MatchStatus.COMPLETED },
+        create: {
+          id: matchOrRace.id,
+          status: MatchStatus.COMPLETED,
+          duration,
+        },
+      });
+
+      await Promise.all(
+        raceState.players.map((player) =>
+          prisma.matchPlayer.upsert({
+            where: { matchId_userId: { matchId: fallbackMatch.id, userId: player.userId } },
+            update: {
+              finishPosition: player.finishPosition ?? null,
+              timeMs: player.timeMs ?? null,
+            },
+            create: {
+              matchId: fallbackMatch.id,
+              userId: player.userId,
+              finishPosition: player.finishPosition ?? null,
+              timeMs: player.timeMs ?? null,
+            },
+          })
+        )
+      );
+    }
+
     const updatePromises = [];
-    
     for (const player of raceState.players) {
       const eloDelta = eloDeltas.find(e => e.userId === player.userId);
       if (!eloDelta) continue;
 
-      // Create MatchPlayer record
-      updatePromises.push(
-        prisma.matchPlayer.create({
-          data: {
-            matchId: dbMatch.id,
-            userId: player.userId,
-            finishPosition: player.finishPosition,
-            timeMs: player.timeMs,
-            deltaElo: eloDelta.delta,
-          },
-        })
-      );
-
-      // Update user ELO and statistics
       const updateData: any = {
         elo: { increment: eloDelta.delta },
         matchesPlayed: { increment: 1 },
       };
       
-      // Increment wins if player finished in top position
       if (player.finishPosition === 1) {
         updateData.wins = { increment: 1 };
       }
@@ -871,7 +928,6 @@ async function endMatch(matchOrRace: any, finishedPlayers: any[]) {
 
     await Promise.all(updatePromises);
 
-    // Prepare race results for clients
     const raceResults = raceState.players.map(p => ({
       userId: p.userId,
       meters: p.meters,
@@ -879,7 +935,6 @@ async function endMatch(matchOrRace: any, finishedPlayers: any[]) {
       timeMs: p.timeMs,
     }));
 
-    // Notify all players in the race room
     const completionPayload = {
       matchId: matchOrRace.id,
       result: raceResults,
@@ -890,7 +945,6 @@ async function endMatch(matchOrRace: any, finishedPlayers: any[]) {
     io.to(raceState.roomName).emit("race_complete", completionPayload);
     io.to(raceState.roomName).emit("race_end", completionPayload);
 
-    // Legacy match_end event for backward compatibility
     const legacyPayload = {
       matchId: matchOrRace.id,
       result: raceResults,
@@ -907,27 +961,21 @@ async function endMatch(matchOrRace: any, finishedPlayers: any[]) {
     return;
   }
 
-  // Legacy 2-player match logic (backward compatibility)
   const match = matchOrRace;
   const ordered = match.players.slice().sort((a: any, b: any) => b.meters - a.meters);
-  // store match
-  const dbMatch = await prisma.match.create({ data: { duration: Date.now() - match.startedAt } });
-  // compute Elo for two players only
+  const dbMatch = await prisma.match.create({ data: { duration: Date.now() - match.startedAt, status: MatchStatus.COMPLETED } });
   if (match.players.length === 2) {
     const pA = match.players[0];
     const pB = match.players[1];
-    // determine outcome: 1 => pA wins else 0
     const outcomeA = (pA.meters >= 100 && pA.meters >= pB.meters) ? 1 : 0;
     const deltaA = calculateEloChange(pA.elo, pB.elo, outcomeA);
     const deltaB = -deltaA;
-    // update DB and create MatchPlayer rows
-    const mp1 = await prisma.matchPlayer.create({
+    await prisma.matchPlayer.create({
       data: { matchId: dbMatch.id, userId: pA.userId, finishPosition: outcomeA === 1 ? 1 : 2, timeMs: null, deltaElo: deltaA },
     });
-    const mp2 = await prisma.matchPlayer.create({
+    await prisma.matchPlayer.create({
       data: { matchId: dbMatch.id, userId: pB.userId, finishPosition: outcomeA === 1 ? 2 : 1, timeMs: null, deltaElo: deltaB },
     });
-    // Update ELO ratings and match statistics
     const updateA: any = { 
       elo: { increment: deltaA },
       matchesPlayed: { increment: 1 }
@@ -952,7 +1000,6 @@ async function endMatch(matchOrRace: any, finishedPlayers: any[]) {
       data: updateB
     });
 
-    // notify players
     match.players.forEach((p: any) => {
       io.to(p.socketId).emit("match_end", { matchId: match.id, result: ordered.map((q: any) => ({ userId: q.userId, meters: q.meters })), eloDeltas: [{ userId: pA.userId, delta: deltaA }, { userId: pB.userId, delta: deltaB }] });
     });

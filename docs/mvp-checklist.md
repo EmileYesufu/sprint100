@@ -9,6 +9,7 @@
 ## Logic/Backend
 - [x] Auth refresh aligned
 - [x] Socket parity
+- [x] Persistent matchmaking state
 
 ## Integration & Testing
 - [ ]
