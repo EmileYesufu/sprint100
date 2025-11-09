@@ -55,6 +55,7 @@
     "@types/node": "^24.7.0",
     "@types/supertest": "^2.0.16",
     "cross-env": "^7.0.3",
+    "tsx": "^4.16.5",
     "diff": "^4.0.2",
     "jest": "^29.7.0",
     "socket.io-client": "^4.8.1",
