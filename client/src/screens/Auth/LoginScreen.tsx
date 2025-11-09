@@ -100,15 +100,16 @@ export default function LoginScreen({ navigation }: Props) {
         <Text style={styles.subtitle}>Login to start the race</Text>
 
         <View style={styles.inputContainer}>
-          <Text style={styles.inputLabel}>Username</Text>
+          <Text style={styles.inputLabel}>Email</Text>
           <TextInput
             style={styles.input}
-            placeholder="Enter your username"
+            placeholder="Enter your email"
             placeholderTextColor={colors.placeholder}
             value={email}
             onChangeText={setEmail}
             autoCapitalize="none"
             keyboardType="email-address"
+            autoComplete="email"
             editable={!isLoading}
           />
         </View>
