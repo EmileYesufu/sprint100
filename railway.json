@@ -1,17 +1,19 @@
 {
-  "build": {
-    "builder": "DOCKER",
-    "dockerfilePath": "server/Dockerfile"
-  },
-  "start": {
-    "command": "node dist/server.js"
-  },
-  "env": {
-    "NODE_ENV": "production",
-    "DATABASE_URL": "",
-    "JWT_SECRET": "",
-    "ALLOWED_ORIGINS": "https://sprint100.app,https://testflight.apple.com",
-    "SUPERUSER_EMAIL": "",
-    "SUPERUSER_PASSWORD": ""
+  "$schema": "https://railway.app/railway.schema.json",
+  "services": {
+    "sprint100-backend": {
+      "rootDir": "server",
+      "build": {
+        "dockerfilePath": "Dockerfile"
+      },
+      "env": {
+        "NODE_ENV": "production",
+        "DATABASE_URL": "",
+        "JWT_SECRET": "",
+        "ALLOWED_ORIGINS": "https://sprint100.app,https://testflight.apple.com",
+        "SUPERUSER_EMAIL": "",
+        "SUPERUSER_PASSWORD": ""
+      }
+    }
   }
 }
