@@ -1,9 +1,10 @@
 {
   "build": {
-    "command": "cd server && npm ci && npm run build"
+    "builder": "DOCKERFILE",
+    "dockerfilePath": "Dockerfile"
   },
   "start": {
-    "command": "cd server && node dist/server.js"
+    "command": "node dist/server.js"
   },
   "env": {
     "NODE_ENV": "production",
