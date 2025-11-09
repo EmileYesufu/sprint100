@@ -24,3 +24,4 @@
 - [ ]
 - [x] Deployment scripts ready
 - [x] Monitoring/health ready
+- [x] Store collateral verified
