@@ -1,7 +1,7 @@
 # MVP Checklist
 
 ## Gameplay
-- [ ]
+- [x] Resilient race flow wired
 
 ## UI/UX
 - [ ]

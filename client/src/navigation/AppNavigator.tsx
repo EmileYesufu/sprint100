@@ -21,7 +21,7 @@ import ForgotPasswordScreen from "@/screens/Auth/ForgotPasswordScreen";
 
 // Race Screens
 import QueueScreen from "@/screens/Race/QueueScreen";
-import RaceScreen from "@/screens/Race/RaceScreen";
+import RaceScreenWithNetworkHandling from "@/screens/Race/RaceScreenWithNetworkHandling";
 
 // Training Screens
 import TrainingSetupScreen from "@/screens/Training/TrainingSetupScreen";
@@ -49,6 +49,7 @@ export type RaceStackParamList = {
       userId: number;
       email: string;
       elo: number;
+      username?: string;
     };
   };
 };
@@ -118,7 +119,7 @@ function RaceNavigator() {
       />
       <RaceStack.Screen
         name="Race"
-        component={RaceScreen}
+        component={RaceScreenWithNetworkHandling}
         options={{
           headerShown: false,
           gestureEnabled: false, // Prevent swipe back during race

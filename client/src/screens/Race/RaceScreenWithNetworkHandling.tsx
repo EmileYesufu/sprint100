@@ -12,6 +12,8 @@ import {
   StyleSheet,
   Dimensions,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useAuth } from "@/hooks/useAuth";
 import { useRace } from "@/hooks/useRace";
 import { NetworkDisconnectModal } from "@/components/NetworkDisconnectModal";
 import { metersToPct } from "@/utils/formatting";
@@ -24,7 +26,19 @@ const { width, height } = Dimensions.get("window");
 
 export default function RaceScreenWithNetworkHandling({ route, navigation }: Props) {
   const { matchId, opponent } = route.params;
-  const { raceState, networkState, handleTap, dismissDisconnectModal, forceReconnect } = useRace(matchId, opponent);
+  const { user } = useAuth();
+  const { raceState, networkState, handleTap, dismissDisconnectModal, forceReconnect } = useRace(
+    String(matchId),
+    opponent
+  );
+
+  const handleReturnHome = () => {
+    navigation.navigate("Queue");
+  };
+
+  const handleRerun = () => {
+    navigation.navigate("Queue");
+  };
 
   const renderCountdown = () => {
     if (raceState.countdown === null) return null;
@@ -63,7 +77,7 @@ export default function RaceScreenWithNetworkHandling({ route, navigation }: Pro
     
     return (
       <View style={styles.opponentContainer}>
-        <Text style={styles.opponentName}>{opponent.username}</Text>
+        <Text style={styles.opponentName}>{opponent.username ?? opponent.email ?? "Opponent"}</Text>
         <View style={styles.opponentProgressBar}>
           <View 
             style={[
@@ -105,49 +119,96 @@ export default function RaceScreenWithNetworkHandling({ route, navigation }: Pro
 
   const renderResult = () => {
     if (raceState.status !== "finished" || !raceState.result) return null;
-    
+    const placement = raceState.result.players?.findIndex(p => p.userId === user?.id) ?? -1;
+    const positionText = placement >= 0 ? `${placement + 1}${getPositionSuffix(placement + 1)}` : "";
     return (
       <View style={styles.resultOverlay}>
         <Text style={styles.resultTitle}>Race Complete!</Text>
         <Text style={styles.resultText}>
-          {raceState.result.winner === raceState.result.myUserId ? "You won!" : "You lost!"}
+          {positionText ? `You finished ${positionText}` : "Results received"}
         </Text>
         <TouchableOpacity
           style={styles.homeButton}
-          onPress={() => navigation.navigate("Home")}
+          onPress={handleReturnHome}
         >
-          <Text style={styles.homeButtonText}>Back to Home</Text>
+          <Text style={styles.homeButtonText}>Return Home</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.homeButton, styles.secondaryButton]}
+          onPress={handleRerun}
+        >
+          <Text style={styles.homeButtonText}>Rerun</Text>
         </TouchableOpacity>
       </View>
     );
   };
 
   return (
-    <View style={styles.container}>
-      {/* Race Content */}
-      <View style={styles.raceContent}>
-        {renderCountdown()}
-        {renderRaceProgress()}
-        {renderOpponentProgress()}
-        {renderTapButtons()}
-        {renderResult()}
+    <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
+      <View style={styles.container}>
+        <View style={styles.topBar}>
+          <TouchableOpacity style={styles.quitButton} onPress={handleReturnHome}>
+            <Text style={styles.quitButtonText}>Quit</Text>
+          </TouchableOpacity>
+        </View>
+        {/* Race Content */}
+        <View style={styles.raceContent}>
+          {renderCountdown()}
+          {renderRaceProgress()}
+          {renderOpponentProgress()}
+          {renderTapButtons()}
+          {renderResult()}
+        </View>
+        
+        {/* Network Disconnect Modal */}
+        <NetworkDisconnectModal
+          visible={networkState.showDisconnectModal}
+          isReconnecting={networkState.isReconnecting}
+          onDismiss={dismissDisconnectModal}
+          onForceReconnect={forceReconnect}
+        />
       </View>
-      
-      {/* Network Disconnect Modal */}
-      <NetworkDisconnectModal
-        visible={networkState.showDisconnectModal}
-        isReconnecting={networkState.isReconnecting}
-        onDismiss={dismissDisconnectModal}
-        onForceReconnect={forceReconnect}
-      />
-    </View>
+    </SafeAreaView>
   );
 }
 
+function getPositionSuffix(position: number): string {
+  if (position % 100 >= 11 && position % 100 <= 13) return "th";
+  switch (position % 10) {
+    case 1:
+      return "st";
+    case 2:
+      return "nd";
+    case 3:
+      return "rd";
+    default:
+      return "th";
+  }
+}
+
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: "#0A1628",
+  },
   container: {
     flex: 1,
     backgroundColor: "#f8f9fa",
+  },
+  topBar: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    alignItems: "flex-start",
+  },
+  quitButton: {
+    backgroundColor: "rgba(0,0,0,0.4)",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  quitButtonText: {
+    color: "#fff",
+    fontWeight: "600",
   },
   raceContent: {
     flex: 1,
@@ -278,6 +339,12 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 32,
     borderRadius: 8,
+    marginTop: 12,
+    minWidth: 180,
+    alignItems: "center",
+  },
+  secondaryButton: {
+    backgroundColor: "#34C759",
   },
   homeButtonText: {
     color: "white",
