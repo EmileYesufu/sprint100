@@ -1,17 +1,8 @@
-jest.mock("expo-constants", () => ({
-  __esModule: true,
-  default: {
-    expoConfig: {
-      extra: {},
-    },
-  },
-}));
-
 describe("config getServerUrl", () => {
   afterEach(() => {
     jest.resetModules();
     delete process.env.EXPO_PUBLIC_API_URL;
-    delete process.env.SERVER_URL;
+    delete process.env.EXPO_PUBLIC_WS_URL;
   });
 
   it("prefers env over fallback", async () => {
@@ -20,11 +11,19 @@ describe("config getServerUrl", () => {
     expect(getServerUrl()).toBe("https://env.example.com");
   });
 
-  it("warns once when missing", async () => {
-    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+  it("falls back to production URL when env missing", async () => {
     const { getServerUrl } = await import("@/config");
-    expect(getServerUrl()).toBe("http://localhost:4000");
-    expect(warnSpy).toHaveBeenCalledTimes(1);
-    warnSpy.mockRestore();
+    expect(getServerUrl()).toBe("https://api.sprint100.app");
+  });
+
+  it("returns websocket env value when provided", async () => {
+    process.env.EXPO_PUBLIC_WS_URL = "wss://ws.example.com";
+    const { getWsUrl } = await import("@/config");
+    expect(getWsUrl()).toBe("wss://ws.example.com");
+  });
+
+  it("falls back to production websocket URL", async () => {
+    const { getWsUrl } = await import("@/config");
+    expect(getWsUrl()).toBe("wss://api.sprint100.app");
   });
 });

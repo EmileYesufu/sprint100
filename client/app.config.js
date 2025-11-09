@@ -52,7 +52,7 @@ export default {
       eas: {
         projectId: "auto-generate"
       },
-      API_URL: process.env.EXPO_PUBLIC_API_URL || "http://192.168.1.140:4000",
+      API_URL: process.env.EXPO_PUBLIC_API_URL,
       APP_ENV: process.env.APP_ENV || "development"
     },
     plugins: [
