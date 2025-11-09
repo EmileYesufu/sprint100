@@ -64,6 +64,8 @@ import {
 
 const app = express();
 
+const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 // Security headers (helmet)
 app.use(helmet({
   contentSecurityPolicy: NODE_ENV === "production",
@@ -345,6 +347,10 @@ const authLimiter = rateLimit({
 app.post("/api/register", authLimiter, async (req, res) => {
   const { email, password, username } = req.body;
   if (!email || !password || !username) return res.status(400).json({ error: "email, password, and username required" });
+
+  if (!emailRegex.test(email)) {
+    return res.status(400).json({ error: "invalid email format" });
+  }
   
   if (!validateUsername(username)) {
     return res.status(400).json({ error: "Invalid username. Use 3-20 alphanumeric characters or underscores." });
@@ -381,7 +387,6 @@ app.post("/api/login", authLimiter, async (req, res) => {
 });
 
 // Forgot password endpoint
-const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const forgotPasswordHandler = async (req: express.Request, res: express.Response) => {
   try {

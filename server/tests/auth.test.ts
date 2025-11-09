@@ -40,6 +40,26 @@ describe('Authentication API', () => {
       expect(response.body.user).not.toHaveProperty('password');
     });
 
+    it.each([
+      'test@gmail.com',
+      'player@outlook.co.uk',
+      'user@company.io',
+    ])('should allow registration with email domain %s', async (email) => {
+      const userData = {
+        email,
+        username: `user_${email.replace(/[^a-zA-Z0-9]/g, '').slice(0, 20)}`,
+        password: 'password123',
+      };
+
+      const response = await request(app)
+        .post('/api/register')
+        .send(userData)
+        .expect(200);
+
+      expect(response.body).toHaveProperty('user');
+      expect(response.body.user.email).toBe(email);
+    });
+
     it('should reject registration with duplicate email', async () => {
       // Create first user
       await prisma.user.create({
