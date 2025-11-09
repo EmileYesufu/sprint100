@@ -122,18 +122,12 @@ app.get("/health/live", (req, res) => {
 app.get("/health/ready", async (req, res) => {
   try {
     await prisma.$queryRaw`SELECT 1`;
-    const pendingQueue = await prisma.matchQueue.count({ where: { status: "PENDING" } });
-    res.json({
-      status: "ready",
-      database: "connected",
-      pendingQueue,
-      timestamp: new Date().toISOString(),
-    });
-  } catch (error: any) {
+    res.status(200).json({ status: "ready", db: "ok" });
+  } catch (err: any) {
+    console.error("❌ DB healthcheck failed:", err?.message || err);
     res.status(503).json({
-      status: "not ready",
-      database: "disconnected",
-      error: error?.message ?? "Database connection failed",
+      status: "unavailable",
+      error: err?.message ?? "Database connection failed",
     });
   }
 });
