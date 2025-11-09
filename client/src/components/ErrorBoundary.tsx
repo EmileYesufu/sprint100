@@ -13,6 +13,7 @@ import {
   ScrollView,
   Alert,
 } from "react-native";
+import * as ErrorRecovery from "expo-error-recovery";
 
 interface Props {
   children: ReactNode;
@@ -110,8 +111,11 @@ export class ErrorBoundary extends Component<Props, State> {
       console.error("ErrorBoundary caught an error:", error, errorInfo);
     }
     
-    // In production, you might want to log this to a crash reporting service
-    // Example: crashlytics().recordError(error);
+    // Persist minimal details for Expo ErrorRecovery integration
+    ErrorRecovery.setRecoveryProps({
+      lastErrorAt: new Date().toISOString(),
+      message: error.message,
+    });
     
     this.setState({
       error,

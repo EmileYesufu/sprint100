@@ -1,4 +1,4 @@
-import express from "express";
+import express, { type NextFunction } from "express";
 import http from "http";
 import { Server as SocketIOServer, type Socket } from "socket.io";
 import cors from "cors";
@@ -492,6 +492,30 @@ app.post("/api/events", authenticateToken, async (req, res) => {
     console.error("Error recording events:", error);
     return res.status(500).json({ error: { code: "server_error", message: "Unable to record events" } });
   }
+});
+
+// Global error handler for structured logging
+app.use((err: any, req: express.Request, res: express.Response, _next: NextFunction) => {
+  const status = typeof err?.status === "number" ? err.status : 500;
+
+  const logEntry = {
+    scope: "http",
+    level: status >= 500 ? "error" : "warn",
+    status,
+    method: req.method,
+    path: req.originalUrl,
+    message: err?.message || "Unhandled error",
+    timestamp: new Date().toISOString(),
+  };
+
+  console.error(JSON.stringify(logEntry));
+
+  if (res.headersSent) {
+    return;
+  }
+
+  const safeMessage = status >= 500 ? "Internal server error" : err?.message || "Request failed";
+  res.status(status).json({ error: safeMessage });
 });
 
 const httpServer = http.createServer(app);
